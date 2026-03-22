@@ -4,6 +4,8 @@
 
 [Model Context Protocol](https://modelcontextprotocol.io/introduction) server for the [SudoMock](https://sudomock.com) mockup generation API. Upload PSD templates, place artwork onto smart objects, and get CDN-hosted renders -- all through natural language.
 
+[![SudoMock MCP server](https://glama.ai/mcp/servers/sudomock/mcp-server/badges/card.svg)](https://glama.ai/mcp/servers/sudomock/mcp-server)
+
 ## Quick Start
 
 ### Option 1: Local (npx)
