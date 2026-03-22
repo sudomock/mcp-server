@@ -92,7 +92,7 @@ The server provides built-in documentation:
 
 - [Dashboard](https://sudomock.com/dashboard) -- Manage mockups and API keys
 - [API Docs](https://sudomock.com/docs) -- Full REST API reference
-- [Pricing](https://sudomock.com/pricing) -- Plans starting at $0
+- [Pricing](https://sudomock.com/pricing)
 - [Status](https://sudomock.statuspage.io) -- Service uptime
 
 ## License
