@@ -1,0 +1,48 @@
+{
+  "name": "@sudomock/mcp",
+  "version": "1.0.0",
+  "description": "SudoMock MCP server for Claude, Cursor, and VS Code. Generate photorealistic product mockups from Photoshop PSD templates.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sudomock",
+    "mockup",
+    "psd",
+    "claude",
+    "cursor",
+    "vscode"
+  ],
+  "homepage": "https://sudomock.com/docs/mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sudomock/mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sudomock/mcp-server/issues"
+  },
+  "license": "MIT",
+  "author": "SudoMock Labs <hello@sudomock.com>",
+  "type": "module",
+  "bin": {
+    "sudomock-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.27.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "typescript": "5.8.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
