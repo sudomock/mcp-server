@@ -1,137 +1,139 @@
-# @sudomock/mcp
+# SudoMock MCP Server
 
-Official [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for [SudoMock](https://sudomock.com) -- the mockup generation API that renders photorealistic product mockups from Photoshop PSD templates.
+> Generate photorealistic product mockups from AI assistants like Claude, Cursor, Windsurf, and VS Code.
 
-Two connection methods are available:
+The [Model Context Protocol](https://modelcontextprotocol.io/introduction) (MCP) connects AI assistants directly with SudoMock's mockup generation API. Upload PSD templates, place artwork onto smart objects, and get CDN-hosted renders -- all through natural language.
 
-| Method | Transport | Best For |
-|--------|-----------|----------|
-| **Local (npx)** | stdio | Claude Desktop, Cursor, VS Code, Claude Code |
-| **Remote** | HTTP (SSE) | Claude Code, any MCP client with HTTP support |
+## Setup
 
-The remote server at `mcp.sudomock.com` supports OAuth and API key authentication. The local server runs as a subprocess and communicates with the SudoMock API over HTTPS.
+### Claude Desktop / Claude Code / Cursor / Windsurf
 
-## Prerequisites
-
-- **Local (npx):** Node.js 18+ and a SudoMock API key ([get one here](https://sudomock.com/dashboard/api-keys))
-- **Remote:** A SudoMock API key or Bearer token only (no Node.js required)
-
-## Authentication
-
-The server accepts authentication in two ways:
-
-- **API Key** (env var): Set `SUDOMOCK_API_KEY=sm_your_key` in your environment or MCP config
-- **Bearer Token**: Pass `Authorization: Bearer <your_supabase_token>` header (remote HTTP only)
-
-## Installation
-
-### Claude Desktop
-
-Add to your `claude_desktop_config.json`:
+Add the server URL to your MCP client config. **No API key needed** -- your client will open a browser window for you to log in with your SudoMock account.
 
 ```json
 {
   "mcpServers": {
     "sudomock": {
-      "command": "npx",
-      "args": ["-y", "@sudomock/mcp"],
-      "env": {
-        "SUDOMOCK_API_KEY": "sm_your_key"
-      }
+      "type": "http",
+      "url": "https://mcp.sudomock.com"
     }
   }
 }
 ```
 
-### Claude Code
-
-**Option 1: Local (stdio)**
+**Claude Code (one-liner):**
 
 ```bash
-claude mcp add sudomock -e SUDOMOCK_API_KEY=sm_your_key -- npx -y @sudomock/mcp
+claude mcp add --transport http sudomock https://mcp.sudomock.com
 ```
 
-**Option 2: Remote (HTTP)**
+That's it. Your client handles OAuth automatically.
+
+### API key (headless / CI environments)
+
+For environments without a browser (scripts, CI pipelines, server-side agents), use your API key instead:
+
+<details>
+<summary>API key configuration</summary>
+
+Get your API key from [sudomock.com/dashboard/api-keys](https://sudomock.com/dashboard/api-keys). Keys start with `sm_`.
+
+**Claude Code:**
 
 ```bash
-claude mcp add --transport http sudomock https://mcp.sudomock.com --header "x-api-key: sm_your_key"
+claude mcp add --transport http sudomock https://mcp.sudomock.com \
+  --header "Authorization: Bearer sm_your_key_here"
 ```
 
-### Cursor
-
-Add to your Cursor MCP settings (`.cursor/mcp.json`):
+**JSON config (Cursor, Windsurf, etc.):**
 
 ```json
 {
   "mcpServers": {
     "sudomock": {
-      "command": "npx",
-      "args": ["-y", "@sudomock/mcp"],
-      "env": {
-        "SUDOMOCK_API_KEY": "sm_your_key"
+      "type": "http",
+      "url": "https://mcp.sudomock.com",
+      "headers": {
+        "Authorization": "Bearer sm_your_key_here"
       }
     }
   }
 }
 ```
 
-### VS Code
+**AI SDK (programmatic):**
 
-Add to your VS Code MCP settings (`.vscode/mcp.json`):
+```typescript
+import { createMCPClient } from "@ai-sdk/mcp";
 
-```json
-{
-  "servers": {
-    "sudomock": {
-      "command": "npx",
-      "args": ["-y", "@sudomock/mcp"],
-      "env": {
-        "SUDOMOCK_API_KEY": "sm_your_key"
-      }
-    }
-  }
-}
+const client = await createMCPClient({
+  transport: {
+    type: "http",
+    url: "https://mcp.sudomock.com",
+    headers: {
+      Authorization: "Bearer sm_your_api_key",
+    },
+  },
+});
 ```
 
-## Available Tools
+</details>
+
+## Tools
 
 | Tool | Description | Credits |
 |------|-------------|---------|
-| `list_mockups` | List your uploaded mockup templates | 0 |
-| `get_mockup_details` | Get full details of a mockup (smart object UUIDs, layers, dimensions) | 0 |
+| `list_mockups` | List your uploaded mockup templates with UUIDs, names, and thumbnails | 0 |
+| `get_mockup_details` | Get smart object UUIDs, layer names, dimensions, and blend modes for a mockup | 0 |
+| `render_mockup` | Place artwork onto a PSD template and get a CDN URL of the rendered image | 1 |
+| `ai_render` | AI-powered render without a PSD -- upload any product photo + artwork, AI detects the surface | 5 |
+| `upload_psd` | Upload a Photoshop PSD/PSB file as a new mockup template (5-30s processing) | 0 |
 | `update_mockup` | Rename a mockup template | 0 |
 | `delete_mockup` | Permanently delete a mockup template | 0 |
-| `render_mockup` | Render a mockup by placing artwork onto a PSD template | 1 |
-| `ai_render` | AI-powered render without a PSD template | 5 |
-| `upload_psd` | Upload a PSD/PSB file as a new mockup template | 0 |
-| `get_account` | Get account info, credit balance, and usage stats | 0 |
-| `create_studio_session` | Create an embedded studio session for interactive editing | 0 |
+| `get_account` | Check your plan, credit balance, and usage stats | 0 |
+| `create_studio_session` | Create an embedded editor session for interactive mockup editing (15-min token) | 0 |
 
-## Quick Start
+## Resources
 
-Once installed, ask your AI assistant:
+The server also provides context resources that AI assistants can read:
 
-> "List my SudoMock mockups"
+| Resource | Description |
+|----------|-------------|
+| `docs://quickstart` | Quick start guide for the SudoMock API |
+| `docs://pricing` | Live pricing data and credit costs |
+| `docs://formats` | Supported output formats, input requirements, blend modes |
 
-> "Render my t-shirt mockup with this artwork: https://example.com/design.png"
+## Prompts
 
-> "Check my SudoMock credit balance"
+| Prompt | Description |
+|--------|-------------|
+| `render_product_mockups` | Guided workflow for creating mockups for a product |
+| `troubleshoot_render` | Help diagnose and fix a render issue |
 
-> "Upload this PSD as a new mockup template: https://example.com/mockup.psd"
+## Example prompts
 
-The typical workflow is:
+Once connected, try these in your AI assistant:
 
-1. `list_mockups` - find your mockup template UUID
-2. `get_mockup_details` - find the smart object UUID within the template
-3. `render_mockup` - render with your artwork URL
-4. `get_account` - check remaining credits
+- "List my mockup templates"
+- "Render this t-shirt mockup with my logo at https://example.com/logo.png"
+- "Upload this PSD as a new mockup template: https://example.com/hoodie.psd"
+- "How many credits do I have left?"
+- "AI render this product photo with my design"
 
-## API Reference
+## Security
 
-Base URL: `https://api.sudomock.com`
+- OAuth 2.1 with PKCE (Supabase as authorization server)
+- All connections over HTTPS
+- API keys are validated server-side per request -- the MCP server never stores credentials
+- Each tool call is authenticated and rate-limited independently
 
-Full API documentation: [sudomock.com/docs](https://sudomock.com/docs)
+## Links
+
+- [SudoMock Dashboard](https://sudomock.com/dashboard) -- manage mockups and API keys
+- [API Documentation](https://sudomock.com/docs) -- full REST API reference
+- [Pricing](https://sudomock.com/pricing) -- plans and credit costs
+- [Status](https://sudomock.betteruptime.com) -- service health
 
 ## License
 
-MIT
+Proprietary. See [sudomock.com/terms](https://sudomock.com/terms).
