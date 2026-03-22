@@ -1,6 +1,7 @@
 {
   "name": "@sudomock/mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "mcpName": "io.github.sudomock/mcp",
   "description": "SudoMock MCP server for Claude, Cursor, and VS Code. Generate photorealistic product mockups from Photoshop PSD templates.",
   "keywords": [
     "mcp",
