@@ -2,12 +2,26 @@
 
 Official [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for [SudoMock](https://sudomock.com) -- the mockup generation API that renders photorealistic product mockups from Photoshop PSD templates.
 
-This is a local **stdio** MCP server. It runs as a subprocess of your AI editor and communicates with the SudoMock API over HTTPS.
+Two connection methods are available:
+
+| Method | Transport | Best For |
+|--------|-----------|----------|
+| **Local (npx)** | stdio | Claude Desktop, Cursor, VS Code, Claude Code |
+| **Remote** | HTTP (SSE) | Claude Code, any MCP client with HTTP support |
+
+The remote server at `mcp.sudomock.com` supports OAuth and API key authentication. The local server runs as a subprocess and communicates with the SudoMock API over HTTPS.
 
 ## Prerequisites
 
-- Node.js 18+
-- A SudoMock API key ([get one here](https://sudomock.com/dashboard/api-keys))
+- **Local (npx):** Node.js 18+ and a SudoMock API key ([get one here](https://sudomock.com/dashboard/api-keys))
+- **Remote:** A SudoMock API key or Bearer token only (no Node.js required)
+
+## Authentication
+
+The server accepts authentication in two ways:
+
+- **API Key** (env var): Set `SUDOMOCK_API_KEY=sm_your_key` in your environment or MCP config
+- **Bearer Token**: Pass `Authorization: Bearer <your_supabase_token>` header (remote HTTP only)
 
 ## Installation
 
@@ -31,11 +45,16 @@ Add to your `claude_desktop_config.json`:
 
 ### Claude Code
 
-```bash
-claude mcp add sudomock -- npx -y @sudomock/mcp
+**Option 1: Local (stdio)**
 
-# Then set the environment variable:
-export SUDOMOCK_API_KEY="sm_your_key"
+```bash
+claude mcp add sudomock -e SUDOMOCK_API_KEY=sm_your_key -- npx -y @sudomock/mcp
+```
+
+**Option 2: Remote (HTTP)**
+
+```bash
+claude mcp add --transport http sudomock https://mcp.sudomock.com --header "x-api-key: sm_your_key"
 ```
 
 ### Cursor
