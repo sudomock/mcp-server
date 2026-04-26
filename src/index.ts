@@ -324,7 +324,7 @@ server.tool(
   "upload_psd",
   "Upload a Photoshop PSD/PSB file as a new mockup template. The PSD must have at least one Smart Object layer. Processing takes 5-30 seconds.",
   {
-    psd_file_url: z.string().describe("Public URL to a .psd or .psb file (max 500MB)"),
+    psd_file_url: z.string().describe("Public URL to a .psd or .psb file (up to Adobe's official PSD file size limit)"),
     psd_name: z.string().optional().describe("Display name for the template (auto-generated from filename if omitted)"),
   },
   async ({ psd_file_url, psd_name }) => {
