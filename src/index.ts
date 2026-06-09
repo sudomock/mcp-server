@@ -219,6 +219,7 @@ server.tool(
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
     image_size: z.number().min(100).max(10000).default(1920).describe("Output width in pixels"),
     quality: z.number().min(1).max(100).default(95).describe("Compression quality for webp/jpg"),
+    dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution 72-2400. Embeds a resolution tag into output metadata (JPEG Exif / PNG pHYs / WebP Exif). Does not change pixel size -- use image_size. jpg/png recommended for max compatibility."),
     rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
     flip_horizontal: z.boolean().default(false).describe("Mirror artwork left-right"),
     flip_vertical: z.boolean().default(false).describe("Mirror artwork top-bottom"),
@@ -265,6 +266,7 @@ server.tool(
         image_format: args.image_format,
         image_size: args.image_size,
         quality: args.quality,
+        ...(args.dpi !== undefined ? { dpi: args.dpi } : {}),
       },
     };
 
@@ -296,12 +298,17 @@ server.tool(
     segment_index: z.number().optional().describe("Optional specific segment index (0-based) if the product has multiple printable areas"),
     image_format: z.enum(["webp", "png"]).default("webp").describe("Output format"),
     quality: z.number().min(1).max(100).default(95).describe("Compression quality"),
+    dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution 72-2400. Embeds a resolution tag into output metadata (JPEG Exif / PNG pHYs / WebP Exif). Does not change pixel size -- use image_size. jpg/png recommended for max compatibility."),
   },
-  async ({ source_url, artwork_url, product_type, segment_index, image_format, quality }) => {
+  async ({ source_url, artwork_url, product_type, segment_index, image_format, quality, dpi }) => {
     const body: Record<string, unknown> = {
       source_url,
       artwork_url,
-      export_options: { image_format, quality },
+      export_options: {
+        image_format,
+        quality,
+        ...(dpi !== undefined ? { dpi } : {}),
+      },
     };
     if (product_type) body.product_type = product_type;
     if (segment_index !== undefined) body.segment_index = segment_index;
