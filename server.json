@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.sudomock/mcp",
-  "description": "Product mockup API. Upload PSD templates, render mockups with 9 tools + AI render.",
+  "description": "Product mockup API. Upload PSD templates and render mockups (PSD + 2D) with 9 tools.",
   "repository": {
     "url": "https://github.com/sudomock/mcp-server",
     "source": "github"
   },
-  "version": "1.0.1",
+  "version": "1.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sudomock/mcp",
-      "version": "1.0.1",
+      "version": "1.2.0",
       "transport": {
         "type": "stdio"
       },
