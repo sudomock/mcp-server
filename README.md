@@ -66,7 +66,7 @@ claude mcp add --transport http sudomock https://mcp.sudomock.com
 | `list_mockups` | List your uploaded mockup templates | 0 |
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
 | `render_mockup` | Render a mockup with your artwork | 1 |
-| `ai_render` | AI-powered render without a PSD template | 5 |
+| `render_2d_mockup` | Render artwork onto a saved 2D mockup template (no PSD) | 5 |
 | `upload_psd` | Upload a Photoshop PSD/PSB template | 0 |
 | `get_account` | Check plan, credits, and usage | 0 |
 | `update_mockup` | Rename a mockup template | 0 |
@@ -77,6 +77,7 @@ claude mcp add --transport http sudomock https://mcp.sudomock.com
 
 - "List my mockup templates"
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"
+- "Render my 2D mockup with this artwork (UUIDs from the dashboard Code tab)"
 - "Upload this PSD as a new template: https://example.com/mockup.psd"
 - "How many credits do I have left?"
 
