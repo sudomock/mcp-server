@@ -118,7 +118,7 @@ async function apiRequest({ method, path, params, body, timeout = DEFAULT_TIMEOU
 
 const server = new McpServer({
   name: "SudoMock",
-  version: "1.0.0",
+  version: "1.2.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -285,37 +285,76 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool 6: ai_render
+// Tool 6: render_2d_mockup
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "ai_render",
-  "AI-powered mockup render without needing a PSD template. Upload any product photo + artwork, AI detects the printable surface and renders with perspective correction. Costs 5 credits.",
+  "render_2d_mockup",
+  "Render artwork onto a saved 2D mockup template (no PSD needed) with perspective correction. Needs mockup_uuid + print_area_uuid (from the dashboard Code tab). Returns the CDN URL of the rendered image. Costs 5 credits. The mockup must be in 'ready' status (depth computation complete).",
   {
-    source_url: z.string().describe("Public URL of the product photo (e.g. a plain t-shirt photo)"),
-    artwork_url: z.string().describe("Public URL of the artwork/design to place on the product"),
-    product_type: z.string().optional().describe("Optional product category hint (e.g. 'tshirt', 'hoodie', 'mug')"),
-    segment_index: z.number().optional().describe("Optional specific segment index (0-based) if the product has multiple printable areas"),
-    image_format: z.enum(["webp", "png"]).default("webp").describe("Output format"),
-    quality: z.number().min(1).max(100).default(95).describe("Compression quality"),
-    dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution 72-2400. Embeds a resolution tag into output metadata (JPEG Exif / PNG pHYs / WebP Exif). Does not change pixel size -- use image_size. jpg/png recommended for max compatibility."),
+    mockup_uuid: z.string().describe("UUID of the 2D mockup template. Get it from the dashboard Code tab (Dashboard -> SudoAI -> open your mockup -> Code tab gives ready-to-run request code with both UUIDs filled in)."),
+    print_area_uuid: z.string().describe("UUID of the print area to render into, inside that mockup. Get it from the same dashboard Code tab (returned as quads[].print_area_id)."),
+    artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
+    blend_mode: z.enum(["multiply", "normal"]).default("multiply").describe("How artwork blends with the product surface - 'multiply' (fabric, default), 'normal' (flat)"),
+    opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
+    brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
+    contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment (-100 to 100)"),
+    saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment (-100 to 100)"),
+    warp_strength: z.number().min(0).max(2).default(1).describe("Surface displacement intensity (0.0-2.0, default 1.0). Higher = more surface warp effect."),
+    rotation: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees (-360 to 360)"),
+    position: z
+      .enum([
+        "center",
+        "top_left",
+        "top_center",
+        "top_right",
+        "center_left",
+        "center_right",
+        "bottom_left",
+        "bottom_center",
+        "bottom_right",
+      ])
+      .default("center")
+      .describe("Placement within the print area (default 'center')"),
+    coverage: z.number().min(10).max(100).default(70).describe("Percentage of the print area to cover (10-100, default 70)"),
+    fit: z.enum(["contain", "fill", "cover"]).default("contain").describe("How artwork fits the print area - 'contain' (fit inside, default), 'fill' (stretch), 'cover' (fill and crop)"),
+    image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
+    image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (100-10000, default 2048)"),
+    quality: z.number().min(1).max(100).default(95).describe("Compression quality for webp/jpg (1-100, default 95)"),
   },
-  async ({ source_url, artwork_url, product_type, segment_index, image_format, quality, dpi }) => {
+  async (args) => {
     const body: Record<string, unknown> = {
-      source_url,
-      artwork_url,
+      mockup_uuid: args.mockup_uuid,
+      print_areas: [
+        {
+          uuid: args.print_area_uuid,
+          artwork_url: args.artwork_url,
+          adjustments: {
+            blend_mode: args.blend_mode,
+            opacity: args.opacity,
+            brightness: args.brightness,
+            contrast: args.contrast,
+            saturation: args.saturation,
+            warp_strength: args.warp_strength,
+          },
+          placement: {
+            position: args.position,
+            coverage: args.coverage,
+            fit: args.fit,
+            rotation: args.rotation,
+          },
+        },
+      ],
       export_options: {
-        image_format,
-        quality,
-        ...(dpi !== undefined ? { dpi } : {}),
+        image_format: args.image_format,
+        image_size: args.image_size,
+        quality: args.quality,
       },
     };
-    if (product_type) body.product_type = product_type;
-    if (segment_index !== undefined) body.segment_index = segment_index;
 
     const result = await apiRequest({
       method: "POST",
-      path: "/api/v1/sudoai/render",
+      path: "/api/v1/sudoai/2d-mockup/render",
       body,
       timeout: RENDER_TIMEOUT,
     });
