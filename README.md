@@ -88,17 +88,18 @@ claude mcp add --transport http sudomock https://mcp.sudomock.com
 `render_mockup` and `upload_psd` accept `is_async: true`, and `render_video` is
 always async. These return a `render_uuid` immediately (HTTP 202) instead of a
 final result. Poll it with `get_job`, or let `wait_for_job` block until the job
-reaches a terminal state and hands back `result_url`, `mockup_uuid`, `cost`,
-`credits`, and `model`.
+reaches a terminal status and hands back `result_url`, `mockup_uuid`, `model`,
+`credits_charged`, and `payg` (`{credits, unit_price, cost}` for pay-as-you-go
+jobs, otherwise `null`).
 
 ### Webhooks
 
 Register an endpoint with `create_webhook_endpoint` to be notified when async
-jobs finish. Deliveries are signed: the `SudoMock-Signature: t=<ts>,v1=<hex>`
-header is an HMAC-SHA256 over `${t}.${rawBody}` using the secret returned at
-creation/rotation. Verify in constant time and reject if `|now - t| > 300s`.
-Each delivery also carries `SudoMock-Event`, `SudoMock-Delivery`, and
-`Idempotency-Key` (`job_uuid:event_type`) headers. Event types:
+jobs finish. Deliveries are signed with TWO headers: `X-SudoMock-Signature`
+(a hex HMAC-SHA256 over `${timestamp}.${rawBody}` using the secret returned at
+creation/rotation) and `X-SudoMock-Timestamp` (unix seconds). Verify in constant
+time and reject if `|now - timestamp| > 300s`. The delivery body is
+`{event, render_uuid, kind, status, result_url, error, created_at}`. Event types:
 `render.succeeded`, `render.failed`, `upload.succeeded`, `video.succeeded`,
 `video.failed`, `webhook.test`.
 
