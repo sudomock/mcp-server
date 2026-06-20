@@ -138,7 +138,7 @@ function formatJobAccepted(result: unknown): string {
   return JSON.stringify(summary, null, 2);
 }
 
-const TERMINAL_JOB_STATES = new Set(["succeeded", "failed"]);
+const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed"]);
 
 /** GET /api/v1/jobs/{render_uuid} -- owner-scoped job status snapshot. */
 async function getJob(renderUuid: string): Promise<Record<string, unknown>> {
@@ -149,10 +149,19 @@ async function getJob(renderUuid: string): Promise<Record<string, unknown>> {
   return result;
 }
 
-/** A job is done when its state is one of the terminal values. */
+/**
+ * A job is done when its status is terminal. The poll response field is
+ * `status`; we also accept a legacy `state` key for forward/backward
+ * compatibility.
+ */
 function isTerminalJob(job: Record<string, unknown>): boolean {
-  const state = typeof job.state === "string" ? job.state : "";
-  return TERMINAL_JOB_STATES.has(state);
+  const status =
+    typeof job.status === "string"
+      ? job.status
+      : typeof job.state === "string"
+        ? job.state
+        : "";
+  return TERMINAL_JOB_STATUSES.has(status);
 }
 
 // ---------------------------------------------------------------------------
@@ -463,7 +472,7 @@ server.tool(
 
 server.tool(
   "get_job",
-  "Get the current status of an async job (render, video, or PSD upload) by its render_uuid. Returns state (queued|running|succeeded|failed), and once succeeded: result_url, mockup_uuid, cost, credits, model, payg (or error if failed). Get the render_uuid from a render_mockup/upload_psd call with is_async=true, or from render_video. To block until done, use wait_for_job instead.",
+  "Get the current status of an async job (render, video, or PSD upload) by its render_uuid. Returns status (queued|running|succeeded|failed), and once succeeded: result_url, mockup_uuid, model, credits_charged, and payg ({credits, unit_price, cost} for pay-as-you-go jobs, else null) -- or error if failed. Get the render_uuid from a render_mockup/upload_psd call with is_async=true, or from render_video. To block until done, use wait_for_job instead.",
   {
     render_uuid: z.string().describe("The render_uuid returned by an async submission (render_mockup is_async, upload_psd is_async, or render_video)"),
   },
@@ -479,7 +488,7 @@ server.tool(
 
 server.tool(
   "wait_for_job",
-  "Poll an async job until it reaches a terminal state (succeeded or failed), then return the final job. Blocks while polling. Use after render_mockup/upload_psd with is_async=true or after render_video. On success the result includes result_url, mockup_uuid, cost, credits, model, payg; on failure it includes error.",
+  "Poll an async job until it reaches a terminal status (succeeded or failed), then return the final job. Blocks while polling. Use after render_mockup/upload_psd with is_async=true or after render_video. On success the result includes result_url, mockup_uuid, model, credits_charged, and payg ({credits, unit_price, cost} or null); on failure it includes error.",
   {
     render_uuid: z.string().describe("The render_uuid to wait on (from an async submission or render_video)"),
     poll_interval_seconds: z
@@ -505,7 +514,7 @@ server.tool(
           timed_out: true,
           render_uuid,
           waited_seconds: timeout_seconds,
-          last_state: job.state ?? "unknown",
+          last_status: job.status ?? job.state ?? "unknown",
           message:
             "Job did not reach a terminal state within timeout_seconds. It may still be running -- call get_job later to check.",
           last_job: job,
@@ -642,11 +651,11 @@ server.tool(
 // Webhook endpoints
 //
 // Manage outbound webhooks so your endpoint is notified when async jobs finish.
-// Deliveries are signed: header "SudoMock-Signature: t=<ts>,v1=<hex>" is an
-// HMAC-SHA256 over `${t}.${rawBody}` with the endpoint's secret; verify in
-// constant time and reject if |now - t| > 300s. Each delivery also carries
-// SudoMock-Event, SudoMock-Delivery, and Idempotency-Key (= job_uuid:event_type)
-// headers (User-Agent SudoMock-Webhook/1.0).
+// Deliveries are signed with TWO headers: "X-SudoMock-Signature: <hex>" (the
+// HMAC-SHA256 over `${timestamp}.${rawBody}` with the endpoint's secret) and
+// "X-SudoMock-Timestamp: <unix-seconds>". Verify in constant time and reject if
+// |now - timestamp| > 300s (User-Agent SudoMock-Webhook/1.0). The delivery body
+// is {event, render_uuid, kind, status, result_url, error, created_at}.
 //
 // Event types: render.succeeded, render.failed, upload.succeeded,
 // video.succeeded, video.failed, webhook.test.
@@ -663,7 +672,7 @@ const WEBHOOK_EVENT_TYPES = [
 
 server.tool(
   "create_webhook_endpoint",
-  "Register a webhook endpoint that SudoMock calls when async jobs finish. The signing secret is returned IN FULL exactly once here -- store it to verify the SudoMock-Signature HMAC on incoming deliveries. URL must be https and publicly routable.",
+  "Register a webhook endpoint that SudoMock calls when async jobs finish. The signing secret is returned IN FULL exactly once here -- store it to verify the HMAC carried in the X-SudoMock-Signature header (with X-SudoMock-Timestamp) on incoming deliveries. URL must be https and publicly routable.",
   {
     url: z.string().describe("https endpoint URL to receive POST deliveries (publicly routable; private/loopback hosts are rejected)"),
     event_types: z
