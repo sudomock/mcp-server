@@ -67,18 +67,50 @@ claude mcp add --transport http sudomock https://mcp.sudomock.com
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
 | `render_mockup` | Render a mockup with your artwork | 1 |
 | `render_2d_mockup` | Render artwork onto a saved 2D mockup template (no PSD) | 5 |
-| `upload_psd` | Upload a Photoshop PSD/PSB template | 0 |
+| `render_video` | Animate a mockup into an AI video clip (always async) | cost-based (free: 1/lifetime) |
+| `upload_psd` | Upload a Photoshop PSD/PSB template (sync or async) | 0 |
+| `get_job` | Check the status of an async job by render_uuid | 0 |
+| `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
 | `get_account` | Check plan, credits, and usage | 0 |
 | `update_mockup` | Rename a mockup template | 0 |
 | `delete_mockup` | Delete a mockup template | 0 |
 | `create_studio_session` | Create an embedded editor session | 0 |
+| `create_webhook_endpoint` | Register a webhook for async job completion | 0 |
+| `list_webhook_endpoints` | List your webhook endpoints | 0 |
+| `delete_webhook_endpoint` | Delete a webhook endpoint | 0 |
+| `rotate_webhook_secret` | Rotate a webhook signing secret | 0 |
+| `test_webhook_endpoint` | Send a signed `webhook.test` event | 0 |
+| `list_webhook_deliveries` | List delivery attempts for an endpoint | 0 |
+| `replay_webhook_delivery` | Replay a single failed delivery | 0 |
+
+### Async jobs
+
+`render_mockup` and `upload_psd` accept `is_async: true`, and `render_video` is
+always async. These return a `render_uuid` immediately (HTTP 202) instead of a
+final result. Poll it with `get_job`, or let `wait_for_job` block until the job
+reaches a terminal state and hands back `result_url`, `mockup_uuid`, `cost`,
+`credits`, and `model`.
+
+### Webhooks
+
+Register an endpoint with `create_webhook_endpoint` to be notified when async
+jobs finish. Deliveries are signed: the `SudoMock-Signature: t=<ts>,v1=<hex>`
+header is an HMAC-SHA256 over `${t}.${rawBody}` using the secret returned at
+creation/rotation. Verify in constant time and reject if `|now - t| > 300s`.
+Each delivery also carries `SudoMock-Event`, `SudoMock-Delivery`, and
+`Idempotency-Key` (`job_uuid:event_type`) headers. Event types:
+`render.succeeded`, `render.failed`, `upload.succeeded`, `video.succeeded`,
+`video.failed`, `webhook.test`.
 
 ## Example Prompts
 
 - "List my mockup templates"
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"
 - "Render my 2D mockup with this artwork (UUIDs from the dashboard Code tab)"
+- "Render this design asynchronously and wait for it to finish"
+- "Animate the hoodie mockup into a 5-second video clip"
 - "Upload this PSD as a new template: https://example.com/mockup.psd"
+- "Set up a webhook at https://example.com/hooks so I get notified when renders finish"
 - "How many credits do I have left?"
 
 ## Resources

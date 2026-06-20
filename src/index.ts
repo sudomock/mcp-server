@@ -113,12 +113,55 @@ async function apiRequest({ method, path, params, body, timeout = DEFAULT_TIMEOU
 }
 
 // ---------------------------------------------------------------------------
+// Async job helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * A queued (202 Accepted) async submission carries a render_uuid + status_url.
+ * Surface that contract plainly so an agent knows to poll instead of hunting
+ * for a result_url that does not exist yet.
+ */
+function formatJobAccepted(result: unknown): string {
+  const r = (result ?? {}) as Record<string, unknown>;
+  const renderUuid = r.render_uuid ?? r.mockup_uuid ?? null;
+  const statusUrl = r.status_url ?? (renderUuid ? `/api/v1/jobs/${renderUuid}` : null);
+  const summary = {
+    accepted: true,
+    render_uuid: renderUuid,
+    kind: r.kind ?? null,
+    status: r.status ?? "queued",
+    status_url: statusUrl,
+    next_step:
+      "Poll get_job with this render_uuid, or call wait_for_job to block until it finishes.",
+    raw: result,
+  };
+  return JSON.stringify(summary, null, 2);
+}
+
+const TERMINAL_JOB_STATES = new Set(["succeeded", "failed"]);
+
+/** GET /api/v1/jobs/{render_uuid} -- owner-scoped job status snapshot. */
+async function getJob(renderUuid: string): Promise<Record<string, unknown>> {
+  const result = (await apiRequest({
+    method: "GET",
+    path: `/api/v1/jobs/${renderUuid}`,
+  })) as Record<string, unknown>;
+  return result;
+}
+
+/** A job is done when its state is one of the terminal values. */
+function isTerminalJob(job: Record<string, unknown>): boolean {
+  const state = typeof job.state === "string" ? job.state : "";
+  return TERMINAL_JOB_STATES.has(state);
+}
+
+// ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
 const server = new McpServer({
   name: "SudoMock",
-  version: "1.2.0",
+  version: "1.3.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -230,6 +273,12 @@ server.tool(
     opacity: z.number().min(0).max(100).default(100).describe("Layer opacity percentage"),
     saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment"),
     export_label: z.string().optional().describe("Optional label for file naming"),
+    is_async: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Queue the render instead of waiting for it. When true the API returns 202 with a render_uuid immediately (no result_url yet) -- poll with get_job, or call wait_for_job to block until it finishes. Use for long renders or when running many in parallel."
+      ),
   },
   async (args) => {
     const smartObject: Record<string, unknown> = {
@@ -274,12 +323,21 @@ server.tool(
       body.export_label = args.export_label;
     }
 
+    if (args.is_async) {
+      body.is_async = true;
+    }
+
     const result = await apiRequest({
       method: "POST",
       path: "/api/v1/renders",
       body,
       timeout: RENDER_TIMEOUT,
     });
+
+    if (args.is_async) {
+      return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
+    }
+
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -372,10 +430,17 @@ server.tool(
   {
     psd_file_url: z.string().describe("Public URL to a .psd or .psb file (up to Adobe's official PSD file size limit)"),
     psd_name: z.string().optional().describe("Display name for the template (auto-generated from filename if omitted)"),
+    is_async: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Queue the upload instead of blocking. When true the API returns 202 with a render_uuid immediately -- poll with get_job (or wait_for_job) to learn when processing finishes and get the new mockup_uuid. Always free (0 credits), sync or async."
+      ),
   },
-  async ({ psd_file_url, psd_name }) => {
+  async ({ psd_file_url, psd_name, is_async }) => {
     const body: Record<string, unknown> = { psd_file_url };
     if (psd_name) body.psd_name = psd_name;
+    if (is_async) body.is_async = true;
 
     const result = await apiRequest({
       method: "POST",
@@ -383,7 +448,155 @@ server.tool(
       body,
       timeout: RENDER_TIMEOUT,
     });
+
+    if (is_async) {
+      return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
+    }
+
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: get_job
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "get_job",
+  "Get the current status of an async job (render, video, or PSD upload) by its render_uuid. Returns state (queued|running|succeeded|failed), and once succeeded: result_url, mockup_uuid, cost, credits, model, payg (or error if failed). Get the render_uuid from a render_mockup/upload_psd call with is_async=true, or from render_video. To block until done, use wait_for_job instead.",
+  {
+    render_uuid: z.string().describe("The render_uuid returned by an async submission (render_mockup is_async, upload_psd is_async, or render_video)"),
+  },
+  async ({ render_uuid }) => {
+    const result = await getJob(render_uuid);
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: wait_for_job
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "wait_for_job",
+  "Poll an async job until it reaches a terminal state (succeeded or failed), then return the final job. Blocks while polling. Use after render_mockup/upload_psd with is_async=true or after render_video. On success the result includes result_url, mockup_uuid, cost, credits, model, payg; on failure it includes error.",
+  {
+    render_uuid: z.string().describe("The render_uuid to wait on (from an async submission or render_video)"),
+    poll_interval_seconds: z
+      .number()
+      .min(1)
+      .max(30)
+      .default(3)
+      .describe("Seconds between status checks (1-30, default 3)"),
+    timeout_seconds: z
+      .number()
+      .min(5)
+      .max(900)
+      .default(300)
+      .describe("Give up after this many seconds if the job has not finished (5-900, default 300)"),
+  },
+  async ({ render_uuid, poll_interval_seconds, timeout_seconds }) => {
+    const deadline = Date.now() + timeout_seconds * 1000;
+    let job = await getJob(render_uuid);
+
+    while (!isTerminalJob(job)) {
+      if (Date.now() >= deadline) {
+        const timedOut = {
+          timed_out: true,
+          render_uuid,
+          waited_seconds: timeout_seconds,
+          last_state: job.state ?? "unknown",
+          message:
+            "Job did not reach a terminal state within timeout_seconds. It may still be running -- call get_job later to check.",
+          last_job: job,
+        };
+        return { content: [{ type: "text" as const, text: JSON.stringify(timedOut, null, 2) }] };
+      }
+      await new Promise((resolve) => setTimeout(resolve, poll_interval_seconds * 1000));
+      job = await getJob(render_uuid);
+    }
+
+    return { content: [{ type: "text" as const, text: JSON.stringify(job, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: render_video
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "render_video",
+  "Animate a mockup into an AI video clip. Produces a still render from the mockup (same shape as render_mockup), then animates it with an auto-routed image-to-video model. ALWAYS async: returns 202 with a render_uuid immediately -- pair with get_job or wait_for_job. Credit cost is computed from model x duration x audio (free tier: 1 video for the lifetime of the account). duration_seconds must be one of the chosen model's allowed durations or the call fails with 400.",
+  {
+    mockup_uuid: z.string().describe("UUID of the mockup to animate (from list_mockups or upload_psd)"),
+    smart_object_uuid: z.string().describe("UUID of the smart object layer to place artwork on (from get_mockup_details)"),
+    artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup before animating"),
+    fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How artwork fills the smart object area in the still frame"),
+    duration_seconds: z
+      .number()
+      .int()
+      .min(1)
+      .max(10)
+      .default(5)
+      .describe("Clip length in seconds. Must be one of the auto-routed model's allowed durations (e.g. Veo [4,5,6,8], Kling [5,10]); an unsupported value is rejected with 400. Cost scales with this value."),
+    audio: z
+      .boolean()
+      .default(false)
+      .describe("Generate audio. Default off (muted clips are cheaper). On increases cost for models with an audio premium (Kling); free for bundled-audio models (Veo/Seedance/Wan/Luma)."),
+    motion: z
+      .enum(["ambient", "showcase"])
+      .default("ambient")
+      .describe("'ambient' = subtle looping hero motion that keeps the print readable; 'showcase' = one deliberate camera/product move."),
+    advanced_model: z
+      .string()
+      .optional()
+      .describe("Escape hatch: explicit roster model id to override the auto-router (e.g. 'kling-v3-pro'). Eliminated/unknown ids are rejected. Omit to auto-route (recommended)."),
+    image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format of the still input frame"),
+    image_size: z.number().min(100).max(10000).default(1920).describe("Width in pixels of the still input frame"),
+    quality: z.number().min(1).max(100).default(95).describe("Compression quality for the still input frame (webp/jpg)"),
+    webhook_url: z
+      .string()
+      .optional()
+      .describe("Optional completion webhook URL. Best-effort push; polling get_job remains the source of truth."),
+  },
+  async (args) => {
+    const video: Record<string, unknown> = {
+      duration_seconds: args.duration_seconds,
+      audio: args.audio,
+      motion: args.motion,
+    };
+    if (args.advanced_model) {
+      video.advanced_model = args.advanced_model;
+    }
+
+    const body: Record<string, unknown> = {
+      mockup_uuid: args.mockup_uuid,
+      smart_objects: [
+        {
+          uuid: args.smart_object_uuid,
+          asset: { url: args.artwork_url, fit: args.fit },
+        },
+      ],
+      export_options: {
+        image_format: args.image_format,
+        image_size: args.image_size,
+        quality: args.quality,
+      },
+      video,
+    };
+
+    if (args.webhook_url) {
+      body.webhook = { url: args.webhook_url };
+    }
+
+    const result = await apiRequest({
+      method: "POST",
+      path: "/api/v1/renders/video",
+      body,
+      timeout: RENDER_TIMEOUT,
+    });
+
+    return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
   }
 );
 
@@ -420,6 +633,145 @@ server.tool(
       method: "POST",
       path: "/api/v1/studio/create-session",
       body: { mockup_uuid, smart_object_uuid },
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Webhook endpoints
+//
+// Manage outbound webhooks so your endpoint is notified when async jobs finish.
+// Deliveries are signed: header "SudoMock-Signature: t=<ts>,v1=<hex>" is an
+// HMAC-SHA256 over `${t}.${rawBody}` with the endpoint's secret; verify in
+// constant time and reject if |now - t| > 300s. Each delivery also carries
+// SudoMock-Event, SudoMock-Delivery, and Idempotency-Key (= job_uuid:event_type)
+// headers (User-Agent SudoMock-Webhook/1.0).
+//
+// Event types: render.succeeded, render.failed, upload.succeeded,
+// video.succeeded, video.failed, webhook.test.
+// ---------------------------------------------------------------------------
+
+const WEBHOOK_EVENT_TYPES = [
+  "render.succeeded",
+  "render.failed",
+  "upload.succeeded",
+  "video.succeeded",
+  "video.failed",
+  "webhook.test",
+] as const;
+
+server.tool(
+  "create_webhook_endpoint",
+  "Register a webhook endpoint that SudoMock calls when async jobs finish. The signing secret is returned IN FULL exactly once here -- store it to verify the SudoMock-Signature HMAC on incoming deliveries. URL must be https and publicly routable.",
+  {
+    url: z.string().describe("https endpoint URL to receive POST deliveries (publicly routable; private/loopback hosts are rejected)"),
+    event_types: z
+      .array(z.enum(WEBHOOK_EVENT_TYPES))
+      .min(1)
+      .describe("Event types to subscribe to (render.succeeded, render.failed, upload.succeeded, video.succeeded, video.failed, webhook.test)"),
+    description: z.string().max(255).optional().describe("Optional human-readable label for this endpoint"),
+  },
+  async ({ url, event_types, description }) => {
+    const body: Record<string, unknown> = { url, event_types };
+    if (description) body.description = description;
+
+    const result = await apiRequest({
+      method: "POST",
+      path: "/api/v1/webhook-endpoints",
+      body,
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "list_webhook_endpoints",
+  "List your registered webhook endpoints (id, url, subscribed event_types, enabled state). Secrets are NOT returned here -- only at creation and rotation.",
+  {},
+  async () => {
+    const result = await apiRequest({
+      method: "GET",
+      path: "/api/v1/webhook-endpoints",
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "delete_webhook_endpoint",
+  "Permanently delete a webhook endpoint. SudoMock stops delivering to it. Cannot be undone.",
+  {
+    endpoint_id: z.string().describe("The id of the webhook endpoint to delete (from list_webhook_endpoints)"),
+  },
+  async ({ endpoint_id }) => {
+    await apiRequest({
+      method: "DELETE",
+      path: `/api/v1/webhook-endpoints/${endpoint_id}`,
+    });
+    return { content: [{ type: "text" as const, text: `Webhook endpoint ${endpoint_id} deleted successfully.` }] };
+  }
+);
+
+server.tool(
+  "rotate_webhook_secret",
+  "Rotate the signing secret for a webhook endpoint. A new secret is returned IN FULL exactly once -- update your verifier with it. The old secret stops being valid.",
+  {
+    endpoint_id: z.string().describe("The id of the webhook endpoint to rotate (from list_webhook_endpoints)"),
+  },
+  async ({ endpoint_id }) => {
+    const result = await apiRequest({
+      method: "POST",
+      path: `/api/v1/webhook-endpoints/${endpoint_id}/rotate-secret`,
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "test_webhook_endpoint",
+  "Send a synthetic webhook.test event through the real signed delivery path to verify your endpoint is reachable and your signature verification works. Returns the enqueued test job_uuid; check the result with list_webhook_deliveries.",
+  {
+    endpoint_id: z.string().describe("The id of the webhook endpoint to test (from list_webhook_endpoints)"),
+  },
+  async ({ endpoint_id }) => {
+    const result = await apiRequest({
+      method: "POST",
+      path: `/api/v1/webhook-endpoints/${endpoint_id}/test`,
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "list_webhook_deliveries",
+  "List delivery attempts for a webhook endpoint (status, event_type, response code, timestamps). Use this to debug failed deliveries before replaying them.",
+  {
+    endpoint_id: z.string().describe("The id of the webhook endpoint (from list_webhook_endpoints)"),
+    status: z.string().optional().describe("Filter by delivery status (e.g. 'failed', 'succeeded')"),
+    event_type: z.enum(WEBHOOK_EVENT_TYPES).optional().describe("Filter by event type"),
+  },
+  async ({ endpoint_id, status, event_type }) => {
+    const result = await apiRequest({
+      method: "GET",
+      path: `/api/v1/webhook-endpoints/${endpoint_id}/deliveries`,
+      params: { status, event_type },
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "replay_webhook_delivery",
+  "Re-enqueue a single webhook delivery with the SAME idempotency key (job_uuid:event_type), e.g. after fixing your endpoint. Get delivery_id from list_webhook_deliveries.",
+  {
+    endpoint_id: z.string().describe("The id of the webhook endpoint (from list_webhook_endpoints)"),
+    delivery_id: z.string().describe("The id of the delivery to replay (from list_webhook_deliveries)"),
+  },
+  async ({ endpoint_id, delivery_id }) => {
+    const result = await apiRequest({
+      method: "POST",
+      path: `/api/v1/webhook-endpoints/${endpoint_id}/deliveries/${delivery_id}/replay`,
     });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
