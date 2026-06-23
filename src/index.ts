@@ -21,7 +21,7 @@ import { z } from "zod";
 const BASE_URL = "https://api.sudomock.com";
 const DEFAULT_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 120_000;
-const USER_AGENT = "SudoMock-MCP/1.0 (stdio)";
+const USER_AGENT = "SudoMock-MCP/1.3.0 (stdio)";
 
 function getApiKey(): string {
   const key = process.env.SUDOMOCK_API_KEY;
@@ -184,14 +184,16 @@ server.tool(
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
     name: z.string().optional().describe("Filter by name (case-insensitive substring match)"),
-    sort_by: z.enum(["created_at", "name"]).default("created_at").describe("Sort field"),
+    created_after: z.string().optional().describe("Only mockups created after this ISO 8601 timestamp"),
+    created_before: z.string().optional().describe("Only mockups created before this ISO 8601 timestamp"),
+    sort_by: z.enum(["created_at", "updated_at", "name"]).default("created_at").describe("Sort field"),
     sort_order: z.enum(["asc", "desc"]).default("desc").describe("Sort direction"),
   },
-  async ({ limit, offset, name, sort_by, sort_order }) => {
+  async ({ limit, offset, name, created_after, created_before, sort_by, sort_order }) => {
     const result = await apiRequest({
       method: "GET",
       path: "/api/v1/mockups",
-      params: { limit, offset, name, sort_by, sort_order },
+      params: { limit, offset, name, created_after, created_before, sort: sort_by, order: sort_order },
     });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
@@ -269,8 +271,8 @@ server.tool(
     artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
     fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How artwork fills the smart object area"),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
-    image_size: z.number().min(100).max(10000).default(1920).describe("Output width in pixels"),
-    quality: z.number().min(1).max(100).default(95).describe("Compression quality for webp/jpg"),
+    image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (default 2048)"),
+    quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (default 90)"),
     dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution 72-2400. Embeds a resolution tag into output metadata (JPEG Exif / PNG pHYs / WebP Exif). Does not change pixel size -- use image_size. jpg/png recommended for max compatibility."),
     rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
     flip_horizontal: z.boolean().default(false).describe("Mirror artwork left-right"),
@@ -281,6 +283,8 @@ server.tool(
     contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment"),
     opacity: z.number().min(0).max(100).default(100).describe("Layer opacity percentage"),
     saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment"),
+    vibrance: z.number().min(-100).max(100).default(0).describe("Vibrance adjustment (-100 to 100)"),
+    blur: z.number().min(0).max(100).default(0).describe("Gaussian blur strength (0 to 100)"),
     export_label: z.string().optional().describe("Optional label for file naming"),
     is_async: z
       .boolean()
@@ -308,12 +312,21 @@ server.tool(
       };
     }
 
-    if (args.brightness || args.contrast || args.opacity !== 100 || args.saturation) {
+    if (
+      args.brightness ||
+      args.contrast ||
+      args.opacity !== 100 ||
+      args.saturation ||
+      args.vibrance ||
+      args.blur
+    ) {
       smartObject.adjustment_layers = {
         brightness: args.brightness,
         contrast: args.contrast,
         opacity: args.opacity,
         saturation: args.saturation,
+        vibrance: args.vibrance,
+        blur: args.blur,
       };
     }
 
@@ -357,10 +370,10 @@ server.tool(
 
 server.tool(
   "render_2d_mockup",
-  "Render artwork onto a saved 2D mockup template (no PSD needed) with perspective correction. Needs mockup_uuid + print_area_uuid (from the dashboard Code tab). Returns the CDN URL of the rendered image. Costs 5 credits. The mockup must be in 'ready' status (depth computation complete).",
+  "Render artwork onto a saved 2D mockup template (no PSD needed) with perspective correction. Needs mockup_uuid + print_area_uuid. Use list_2d_mockups to find mockup_uuid, then get_2d_mockup to read its quads[].print_area_id for print_area_uuid. Returns the CDN URL of the rendered image. Costs 5 credits. The mockup must be in 'ready' status (depth computation complete).",
   {
-    mockup_uuid: z.string().describe("UUID of the 2D mockup template. Get it from the dashboard Code tab (Dashboard -> SudoAI -> open your mockup -> Code tab gives ready-to-run request code with both UUIDs filled in)."),
-    print_area_uuid: z.string().describe("UUID of the print area to render into, inside that mockup. Get it from the same dashboard Code tab (returned as quads[].print_area_id)."),
+    mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
+    print_area_uuid: z.string().describe("UUID of the print area to render into (from get_2d_mockup, returned as quads[].print_area_id)."),
     artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
     blend_mode: z.enum(["multiply", "normal"]).default("multiply").describe("How artwork blends with the product surface - 'multiply' (fabric, default), 'normal' (flat)"),
     opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
@@ -387,7 +400,7 @@ server.tool(
     fit: z.enum(["contain", "fill", "cover"]).default("contain").describe("How artwork fits the print area - 'contain' (fit inside, default), 'fill' (stretch), 'cover' (fill and crop)"),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (100-10000, default 2048)"),
-    quality: z.number().min(1).max(100).default(95).describe("Compression quality for webp/jpg (1-100, default 95)"),
+    quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (1-100, default 90)"),
   },
   async (args) => {
     const body: Record<string, unknown> = {
@@ -424,6 +437,65 @@ server.tool(
       path: "/api/v1/sudoai/2d-mockup/render",
       body,
       timeout: RENDER_TIMEOUT,
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: list_2d_mockups
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "list_2d_mockups",
+  "List your saved SudoAI 2D mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup (to read print_area UUIDs) or render_2d_mockup. Costs 0 credits.",
+  {
+    limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
+    offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
+  },
+  async ({ limit, offset }) => {
+    const result = await apiRequest({
+      method: "GET",
+      path: "/api/v1/sudoai/2d-mockups",
+      params: { limit, offset },
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: get_2d_mockup
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "get_2d_mockup",
+  "Get one SudoAI 2D mockup's full details: status, thumbnail, source dimensions, and quads[] (each with print_area_id). Use a quads[].print_area_id as the print_area_uuid for render_2d_mockup. Costs 0 credits.",
+  {
+    mockup_id: z.string().describe("UUID of the 2D mockup (mockup_id from list_2d_mockups)"),
+  },
+  async ({ mockup_id }) => {
+    const result = await apiRequest({
+      method: "GET",
+      path: `/api/v1/sudoai/2d-mockup/${mockup_id}`,
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: delete_2d_mockup
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "delete_2d_mockup",
+  "Permanently delete a SudoAI 2D mockup template (and its masks, quads, and stored files). Cannot be undone. Costs 0 credits.",
+  {
+    mockup_id: z.string().describe("UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"),
+  },
+  async ({ mockup_id }) => {
+    const result = await apiRequest({
+      method: "DELETE",
+      path: `/api/v1/sudoai/2d-mockup/${mockup_id}`,
     });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
@@ -478,6 +550,29 @@ server.tool(
   },
   async ({ render_uuid }) => {
     const result = await getJob(render_uuid);
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: list_jobs
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "list_jobs",
+  "List your async jobs (renders, videos, PSD uploads), newest first. Use this to enumerate in-flight or finished jobs when you do not already hold a render_uuid. Keyset-paginated: pass the returned next_cursor to fetch the next page. Each job carries render_uuid, kind, status, model, result_url, mockup_uuid, credits_charged, and (for video) duration_seconds/audio.",
+  {
+    kind: z.enum(["video", "render", "upload"]).optional().describe("Filter by job kind. Omit for all kinds."),
+    mockup_uuid: z.string().optional().describe("Filter by source mockup UUID (e.g. one mockup's videos). Raw-image videos are never returned by this filter."),
+    limit: z.number().int().min(1).max(50).default(20).describe("Max jobs per page (1-50, default 20)"),
+    cursor: z.string().optional().describe("Opaque keyset cursor from a prior page's next_cursor"),
+  },
+  async ({ kind, mockup_uuid, limit, cursor }) => {
+    const result = await apiRequest({
+      method: "GET",
+      path: "/api/v1/jobs",
+      params: { kind, mockup_uuid, limit, cursor },
+    });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -545,13 +640,13 @@ server.tool(
       .number()
       .int()
       .min(1)
-      .max(10)
-      .default(5)
-      .describe("Clip length in seconds. Must be one of the auto-routed model's allowed durations (e.g. Veo [4,5,6,8], Kling [5,10]); an unsupported value is rejected with 400. Cost scales with this value."),
+      .max(15)
+      .default(4)
+      .describe("Clip length in seconds. Must be one of the auto-routed model's allowed durations or the call is rejected with 400 (INVALID_VIDEO_DURATION). Allowed sets: Veo [4,6,8] (the default-tier primary), Kling v3 Pro [3..15], Kling 2.6 Pro / Seedance / Wan [5,10]. Default 4 is the only value valid across the default-tier Veo route. Cost scales with this value."),
     audio: z
       .boolean()
       .default(false)
-      .describe("Generate audio. Default off (muted clips are cheaper). On increases cost for models with an audio premium (Kling); free for bundled-audio models (Veo/Seedance/Wan/Luma)."),
+      .describe("Generate audio. Default off (muted clips are cheaper). Audio cost depends on the routed model: Veo bundles audio at a premium, Kling v3/2.6 charge an audio premium; Seedance and Wan add no audio cost."),
     motion: z
       .enum(["ambient", "showcase"])
       .default("ambient")
@@ -561,8 +656,8 @@ server.tool(
       .optional()
       .describe("Escape hatch: explicit roster model id to override the auto-router (e.g. 'kling-v3-pro'). Eliminated/unknown ids are rejected. Omit to auto-route (recommended)."),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format of the still input frame"),
-    image_size: z.number().min(100).max(10000).default(1920).describe("Width in pixels of the still input frame"),
-    quality: z.number().min(1).max(100).default(95).describe("Compression quality for the still input frame (webp/jpg)"),
+    image_size: z.number().min(100).max(10000).default(2048).describe("Width in pixels of the still input frame (default 2048)"),
+    quality: z.number().min(1).max(100).default(90).describe("Compression quality for the still input frame (webp/jpg, default 90)"),
     webhook_url: z
       .string()
       .optional()
@@ -632,16 +727,18 @@ server.tool(
 
 server.tool(
   "create_studio_session",
-  "Create an embedded studio session for interactive mockup editing in a web page. Returns a 15-minute session token for iframe embedding.",
+  "Create an embedded studio session for interactive mockup editing in a web page. Returns a 15-minute session token (sess_...) for iframe embedding; the token auto-extends on use. Authenticated with your API key.",
   {
     mockup_uuid: z.string().describe("UUID of the mockup to edit"),
-    smart_object_uuid: z.string().describe("UUID of the smart object to customize"),
+    product_id: z.string().optional().describe("Optional platform product ID to associate with the session"),
   },
-  async ({ mockup_uuid, smart_object_uuid }) => {
+  async ({ mockup_uuid, product_id }) => {
+    const body: Record<string, unknown> = { mockup_uuid };
+    if (product_id) body.product_id = product_id;
     const result = await apiRequest({
       method: "POST",
       path: "/api/v1/studio/create-session",
-      body: { mockup_uuid, smart_object_uuid },
+      body,
     });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
@@ -677,8 +774,8 @@ server.tool(
     url: z.string().describe("https endpoint URL to receive POST deliveries (publicly routable; private/loopback hosts are rejected)"),
     event_types: z
       .array(z.enum(WEBHOOK_EVENT_TYPES))
-      .min(1)
-      .describe("Event types to subscribe to (render.succeeded, render.failed, upload.succeeded, video.succeeded, video.failed, webhook.test)"),
+      .default([])
+      .describe("Event types to subscribe to (render.succeeded, render.failed, upload.succeeded, video.succeeded, video.failed, webhook.test). Pass an empty array (the default) to subscribe to ALL events."),
     description: z.string().max(255).optional().describe("Optional human-readable label for this endpoint"),
   },
   async ({ url, event_types, description }) => {
@@ -702,6 +799,35 @@ server.tool(
     const result = await apiRequest({
       method: "GET",
       path: "/api/v1/webhook-endpoints",
+    });
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+server.tool(
+  "update_webhook_endpoint",
+  "Update a webhook endpoint in place: change its url, description, subscribed event_types, or enable/disable it (enabled:false pauses deliveries without losing the signing secret). All fields optional -- only the ones you pass are changed. The secret is NOT rotated or returned here.",
+  {
+    endpoint_id: z.string().describe("The id of the webhook endpoint to update (from list_webhook_endpoints)"),
+    url: z.string().optional().describe("New https endpoint URL (publicly routable; private/loopback hosts are rejected)"),
+    description: z.string().max(255).optional().describe("New human-readable label"),
+    event_types: z
+      .array(z.enum(WEBHOOK_EVENT_TYPES))
+      .optional()
+      .describe("Replacement list of subscribed event types. Pass an empty array to subscribe to ALL events."),
+    enabled: z.boolean().optional().describe("Set false to pause deliveries (secret preserved), true to resume"),
+  },
+  async ({ endpoint_id, url, description, event_types, enabled }) => {
+    const body: Record<string, unknown> = {};
+    if (url !== undefined) body.url = url;
+    if (description !== undefined) body.description = description;
+    if (event_types !== undefined) body.event_types = event_types;
+    if (enabled !== undefined) body.enabled = enabled;
+
+    const result = await apiRequest({
+      method: "PATCH",
+      path: `/api/v1/webhook-endpoints/${endpoint_id}`,
+      body,
     });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
@@ -759,12 +885,13 @@ server.tool(
     endpoint_id: z.string().describe("The id of the webhook endpoint (from list_webhook_endpoints)"),
     status: z.string().optional().describe("Filter by delivery status (e.g. 'failed', 'succeeded')"),
     event_type: z.enum(WEBHOOK_EVENT_TYPES).optional().describe("Filter by event type"),
+    limit: z.number().int().min(1).max(200).default(50).describe("Max deliveries to return (1-200, default 50)"),
   },
-  async ({ endpoint_id, status, event_type }) => {
+  async ({ endpoint_id, status, event_type, limit }) => {
     const result = await apiRequest({
       method: "GET",
       path: `/api/v1/webhook-endpoints/${endpoint_id}/deliveries`,
-      params: { status, event_type },
+      params: { status, event_type, limit },
     });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
