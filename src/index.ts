@@ -117,22 +117,22 @@ async function apiRequest({ method, path, params, body, timeout = DEFAULT_TIMEOU
 // ---------------------------------------------------------------------------
 
 /**
- * A queued (202 Accepted) async submission carries a render_uuid + status_url.
+ * A queued (202 Accepted) async submission carries a job_id + status_url.
  * Surface that contract plainly so an agent knows to poll instead of hunting
  * for a result_url that does not exist yet.
  */
 function formatJobAccepted(result: unknown): string {
   const r = (result ?? {}) as Record<string, unknown>;
-  const renderUuid = r.render_uuid ?? r.mockup_uuid ?? null;
-  const statusUrl = r.status_url ?? (renderUuid ? `/api/v1/jobs/${renderUuid}` : null);
+  const jobId = r.job_id ?? r.mockup_uuid ?? null;
+  const statusUrl = r.status_url ?? (jobId ? `/api/v1/jobs/${jobId}` : null);
   const summary = {
     accepted: true,
-    render_uuid: renderUuid,
+    job_id: jobId,
     kind: r.kind ?? null,
     status: r.status ?? "queued",
     status_url: statusUrl,
     next_step:
-      "Poll get_job with this render_uuid, or call wait_for_job to block until it finishes.",
+      "Poll get_job with this job_id, or call wait_for_job to block until it finishes.",
     raw: result,
   };
   return JSON.stringify(summary, null, 2);
@@ -140,11 +140,11 @@ function formatJobAccepted(result: unknown): string {
 
 const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed"]);
 
-/** GET /api/v1/jobs/{render_uuid} -- owner-scoped job status snapshot. */
-async function getJob(renderUuid: string): Promise<Record<string, unknown>> {
+/** GET /api/v1/jobs/{job_id} -- owner-scoped job status snapshot. */
+async function getJob(jobId: string): Promise<Record<string, unknown>> {
   const result = (await apiRequest({
     method: "GET",
-    path: `/api/v1/jobs/${renderUuid}`,
+    path: `/api/v1/jobs/${jobId}`,
   })) as Record<string, unknown>;
   return result;
 }
@@ -290,7 +290,7 @@ server.tool(
       .boolean()
       .default(false)
       .describe(
-        "Queue the render instead of waiting for it. When true the API returns 202 with a render_uuid immediately (no result_url yet) -- poll with get_job, or call wait_for_job to block until it finishes. Use for long renders or when running many in parallel."
+        "Queue the render instead of waiting for it. When true the API returns 202 with a job_id immediately (no result_url yet) -- poll with get_job, or call wait_for_job to block until it finishes. Use for long renders or when running many in parallel."
       ),
   },
   async (args) => {
@@ -515,7 +515,7 @@ server.tool(
       .boolean()
       .default(false)
       .describe(
-        "Queue the upload instead of blocking. When true the API returns 202 with a render_uuid immediately -- poll with get_job (or wait_for_job) to learn when processing finishes and get the new mockup_uuid. Always free (0 credits), sync or async."
+        "Queue the upload instead of blocking. When true the API returns 202 with a job_id immediately -- poll with get_job (or wait_for_job) to learn when processing finishes and get the new mockup_uuid. Always free (0 credits), sync or async."
       ),
   },
   async ({ psd_file_url, psd_name, is_async }) => {
@@ -544,12 +544,12 @@ server.tool(
 
 server.tool(
   "get_job",
-  "Get the current status of an async job (render, video, or PSD upload) by its render_uuid. Returns status (queued|running|succeeded|failed), and once succeeded: result_url, mockup_uuid, model, credits_charged, and payg ({credits, unit_price, cost} for pay-as-you-go jobs, else null) -- or error if failed. Get the render_uuid from a render_mockup/upload_psd call with is_async=true, or from render_video. To block until done, use wait_for_job instead.",
+  "Get the current status of an async job (render, video, or PSD upload) by its job_id. Returns status (queued|running|succeeded|failed), and once succeeded: result_url, mockup_uuid, model, credits_charged, and payg ({credits, unit_price, cost} for pay-as-you-go jobs, else null) -- or error if failed. Get the job_id from a render_mockup/upload_psd call with is_async=true, or from render_video. To block until done, use wait_for_job instead.",
   {
-    render_uuid: z.string().describe("The render_uuid returned by an async submission (render_mockup is_async, upload_psd is_async, or render_video)"),
+    job_id: z.string().describe("The job_id returned by an async submission (render_mockup is_async, upload_psd is_async, or render_video)"),
   },
-  async ({ render_uuid }) => {
-    const result = await getJob(render_uuid);
+  async ({ job_id }) => {
+    const result = await getJob(job_id);
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -560,7 +560,7 @@ server.tool(
 
 server.tool(
   "list_jobs",
-  "List your async jobs (renders, videos, PSD uploads), newest first. Use this to enumerate in-flight or finished jobs when you do not already hold a render_uuid. Keyset-paginated: pass the returned next_cursor to fetch the next page. Each job carries render_uuid, kind, status, model, result_url, mockup_uuid, credits_charged, and (for video) duration_seconds/audio.",
+  "List your async jobs (renders, videos, PSD uploads), newest first. Use this to enumerate in-flight or finished jobs when you do not already hold a job_id. Keyset-paginated: pass the returned next_cursor to fetch the next page. Each job carries job_id, kind, status, model, result_url, mockup_uuid, credits_charged, and (for video) duration_seconds/audio.",
   {
     kind: z.enum(["video", "render", "upload"]).optional().describe("Filter by job kind. Omit for all kinds."),
     mockup_uuid: z.string().optional().describe("Filter by source mockup UUID (e.g. one mockup's videos). Raw-image videos are never returned by this filter."),
@@ -585,7 +585,7 @@ server.tool(
   "wait_for_job",
   "Poll an async job until it reaches a terminal status (succeeded or failed), then return the final job. Blocks while polling. Use after render_mockup/upload_psd with is_async=true or after render_video. On success the result includes result_url, mockup_uuid, model, credits_charged, and payg ({credits, unit_price, cost} or null); on failure it includes error.",
   {
-    render_uuid: z.string().describe("The render_uuid to wait on (from an async submission or render_video)"),
+    job_id: z.string().describe("The job_id to wait on (from an async submission or render_video)"),
     poll_interval_seconds: z
       .number()
       .min(1)
@@ -599,15 +599,15 @@ server.tool(
       .default(300)
       .describe("Give up after this many seconds if the job has not finished (5-900, default 300)"),
   },
-  async ({ render_uuid, poll_interval_seconds, timeout_seconds }) => {
+  async ({ job_id, poll_interval_seconds, timeout_seconds }) => {
     const deadline = Date.now() + timeout_seconds * 1000;
-    let job = await getJob(render_uuid);
+    let job = await getJob(job_id);
 
     while (!isTerminalJob(job)) {
       if (Date.now() >= deadline) {
         const timedOut = {
           timed_out: true,
-          render_uuid,
+          job_id,
           waited_seconds: timeout_seconds,
           last_status: job.status ?? job.state ?? "unknown",
           message:
@@ -617,7 +617,7 @@ server.tool(
         return { content: [{ type: "text" as const, text: JSON.stringify(timedOut, null, 2) }] };
       }
       await new Promise((resolve) => setTimeout(resolve, poll_interval_seconds * 1000));
-      job = await getJob(render_uuid);
+      job = await getJob(job_id);
     }
 
     return { content: [{ type: "text" as const, text: JSON.stringify(job, null, 2) }] };
@@ -630,7 +630,7 @@ server.tool(
 
 server.tool(
   "render_video",
-  "Animate a mockup into an AI video clip. Produces a still render from the mockup (same shape as render_mockup), then animates it with an auto-routed image-to-video model. ALWAYS async: returns 202 with a render_uuid immediately -- pair with get_job or wait_for_job. Credit cost is computed from model x duration x audio (free tier: 1 video for the lifetime of the account). duration_seconds must be one of the chosen model's allowed durations or the call fails with 400.",
+  "Animate a mockup into an AI video clip. Produces a still render from the mockup (same shape as render_mockup), then animates it with an auto-routed image-to-video model. ALWAYS async: returns 202 with a job_id immediately -- pair with get_job or wait_for_job. Credit cost is computed from model x duration x audio (free tier: 1 video for the lifetime of the account). duration_seconds must be one of the chosen model's allowed durations or the call fails with 400.",
   {
     mockup_uuid: z.string().describe("UUID of the mockup to animate (from list_mockups or upload_psd)"),
     smart_object_uuid: z.string().describe("UUID of the smart object layer to place artwork on (from get_mockup_details)"),
@@ -752,7 +752,7 @@ server.tool(
 // HMAC-SHA256 over `${timestamp}.${rawBody}` with the endpoint's secret) and
 // "X-SudoMock-Timestamp: <unix-seconds>". Verify in constant time and reject if
 // |now - timestamp| > 300s (User-Agent SudoMock-Webhook/1.0). The delivery body
-// is {event, render_uuid, kind, status, result_url, error, created_at}.
+// is {event, job_id, kind, status, result_url, error, created_at}.
 //
 // Event types: render.succeeded, render.failed, upload.succeeded,
 // video.succeeded, video.failed, webhook.test.
