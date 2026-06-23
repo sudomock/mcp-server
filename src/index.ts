@@ -885,7 +885,7 @@ server.tool(
 
 server.tool(
   "test_webhook_endpoint",
-  "Send a synthetic webhook.test event through the real signed delivery path to verify your endpoint is reachable and your signature verification works. Returns the enqueued test job_uuid; check the result with list_webhook_deliveries.",
+  "Send a synthetic webhook.test event through the real signed delivery path to verify your endpoint is reachable and your signature verification works. Returns the enqueued test job_id; check the result with list_webhook_deliveries.",
   {
     endpoint_id: z.string().describe("The id of the webhook endpoint to test (from list_webhook_endpoints)"),
   },
@@ -919,7 +919,7 @@ server.tool(
 
 server.tool(
   "replay_webhook_delivery",
-  "Re-enqueue a single webhook delivery with the SAME idempotency key (job_uuid:event_type), e.g. after fixing your endpoint. Get delivery_id from list_webhook_deliveries.",
+  "Re-enqueue a single webhook delivery with the SAME idempotency key (job_id:event_type), e.g. after fixing your endpoint. Get delivery_id from list_webhook_deliveries.",
   {
     endpoint_id: z.string().describe("The id of the webhook endpoint (from list_webhook_endpoints)"),
     delivery_id: z.string().describe("The id of the delivery to replay (from list_webhook_deliveries)"),
