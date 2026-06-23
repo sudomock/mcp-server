@@ -69,14 +69,19 @@ claude mcp add --transport http sudomock https://mcp.sudomock.com
 | `render_2d_mockup` | Render artwork onto a saved 2D mockup template (no PSD) | 5 |
 | `render_video` | Animate a mockup into an AI video clip (always async) | cost-based (free: 1/lifetime) |
 | `upload_psd` | Upload a Photoshop PSD/PSB template (sync or async) | 0 |
+| `list_2d_mockups` | List your saved SudoAI 2D mockup templates | 0 |
+| `get_2d_mockup` | Get one 2D mockup's details + print-area UUIDs | 0 |
+| `delete_2d_mockup` | Delete a 2D mockup template | 0 |
 | `get_job` | Check the status of an async job by render_uuid | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
+| `list_jobs` | List your async jobs (renders, videos, uploads) | 0 |
 | `get_account` | Check plan, credits, and usage | 0 |
 | `update_mockup` | Rename a mockup template | 0 |
 | `delete_mockup` | Delete a mockup template | 0 |
 | `create_studio_session` | Create an embedded editor session | 0 |
 | `create_webhook_endpoint` | Register a webhook for async job completion | 0 |
 | `list_webhook_endpoints` | List your webhook endpoints | 0 |
+| `update_webhook_endpoint` | Edit or enable/disable a webhook endpoint | 0 |
 | `delete_webhook_endpoint` | Delete a webhook endpoint | 0 |
 | `rotate_webhook_secret` | Rotate a webhook signing secret | 0 |
 | `test_webhook_endpoint` | Send a signed `webhook.test` event | 0 |
@@ -107,20 +112,12 @@ time and reject if `|now - timestamp| > 300s`. The delivery body is
 
 - "List my mockup templates"
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"
-- "Render my 2D mockup with this artwork (UUIDs from the dashboard Code tab)"
+- "List my 2D mockups, then render the first one with this artwork: https://example.com/logo.png"
 - "Render this design asynchronously and wait for it to finish"
 - "Animate the hoodie mockup into a 5-second video clip"
 - "Upload this PSD as a new template: https://example.com/mockup.psd"
 - "Set up a webhook at https://example.com/hooks so I get notified when renders finish"
 - "How many credits do I have left?"
-
-## Resources
-
-The server provides built-in documentation:
-
-- **Quick Start Guide** -- How to use the tools step by step
-- **Pricing** -- Live plan and credit information
-- **Formats** -- Supported output formats, blend modes, and PSD requirements
 
 ## Links
 
