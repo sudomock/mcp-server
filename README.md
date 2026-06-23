@@ -6,7 +6,8 @@
 
 ## Quick Start
 
-### Option 1: Local (npx)
+This is a local **stdio** server: your MCP client launches it as a child process
+via `npx` and authenticates with your `SUDOMOCK_API_KEY`.
 
 ```bash
 claude mcp add sudomock \
@@ -35,29 +36,8 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 
 </details>
 
-### Option 2: Remote (OAuth)
-
-No API key needed. Your client opens a browser for login.
-
-```bash
-claude mcp add --transport http sudomock https://mcp.sudomock.com
-```
-
-<details>
-<summary>JSON config for other clients</summary>
-
-```json
-{
-  "mcpServers": {
-    "sudomock": {
-      "type": "http",
-      "url": "https://mcp.sudomock.com"
-    }
-  }
-}
-```
-
-</details>
+> **Note:** A hosted remote (HTTP/OAuth) transport is not available yet. This
+> package only ships the local stdio server shown above.
 
 ## Tools
 
@@ -72,7 +52,7 @@ claude mcp add --transport http sudomock https://mcp.sudomock.com
 | `list_2d_mockups` | List your saved SudoAI 2D mockup templates | 0 |
 | `get_2d_mockup` | Get one 2D mockup's details + print-area UUIDs | 0 |
 | `delete_2d_mockup` | Delete a 2D mockup template | 0 |
-| `get_job` | Check the status of an async job by render_uuid | 0 |
+| `get_job` | Check the status of an async job by job_id | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
 | `list_jobs` | List your async jobs (renders, videos, uploads) | 0 |
 | `get_account` | Check plan, credits, and usage | 0 |
@@ -91,7 +71,7 @@ claude mcp add --transport http sudomock https://mcp.sudomock.com
 ### Async jobs
 
 `render_mockup` and `upload_psd` accept `is_async: true`, and `render_video` is
-always async. These return a `render_uuid` immediately (HTTP 202) instead of a
+always async. These return a `job_id` immediately (HTTP 202) instead of a
 final result. Poll it with `get_job`, or let `wait_for_job` block until the job
 reaches a terminal status and hands back `result_url`, `mockup_uuid`, `model`,
 `credits_charged`, and `payg` (`{credits, unit_price, cost}` for pay-as-you-go
@@ -104,7 +84,7 @@ jobs finish. Deliveries are signed with TWO headers: `X-SudoMock-Signature`
 (a hex HMAC-SHA256 over `${timestamp}.${rawBody}` using the secret returned at
 creation/rotation) and `X-SudoMock-Timestamp` (unix seconds). Verify in constant
 time and reject if `|now - timestamp| > 300s`. The delivery body is
-`{event, render_uuid, kind, status, result_url, error, created_at}`. Event types:
+`{event, job_id, kind, status, result_url, error, created_at}`. Event types:
 `render.succeeded`, `render.failed`, `upload.succeeded`, `video.succeeded`,
 `video.failed`, `webhook.test`.
 
