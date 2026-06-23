@@ -12,6 +12,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -119,11 +120,12 @@ async function apiRequest({ method, path, params, body, timeout = DEFAULT_TIMEOU
 /**
  * A queued (202 Accepted) async submission carries a job_id + status_url.
  * Surface that contract plainly so an agent knows to poll instead of hunting
- * for a result_url that does not exist yet.
+ * for a result_url that does not exist yet. Every async submit endpoint
+ * (/renders, /psd/upload, /renders/video) returns `job_id` in its 202 body.
  */
-function formatJobAccepted(result: unknown): string {
+export function formatJobAccepted(result: unknown): string {
   const r = (result ?? {}) as Record<string, unknown>;
-  const jobId = r.job_id ?? r.mockup_uuid ?? null;
+  const jobId = r.job_id ?? null;
   const statusUrl = r.status_url ?? (jobId ? `/api/v1/jobs/${jobId}` : null);
   const summary = {
     accepted: true,
@@ -138,7 +140,7 @@ function formatJobAccepted(result: unknown): string {
   return JSON.stringify(summary, null, 2);
 }
 
-const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed"]);
+export const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed"]);
 
 /** GET /api/v1/jobs/{job_id} -- owner-scoped job status snapshot. */
 async function getJob(jobId: string): Promise<Record<string, unknown>> {
@@ -150,17 +152,11 @@ async function getJob(jobId: string): Promise<Record<string, unknown>> {
 }
 
 /**
- * A job is done when its status is terminal. The poll response field is
- * `status`; we also accept a legacy `state` key for forward/backward
- * compatibility.
+ * A job is done when its status is terminal. The poll response (GET
+ * /api/v1/jobs/{job_id}) always reports the job state in the `status` field.
  */
-function isTerminalJob(job: Record<string, unknown>): boolean {
-  const status =
-    typeof job.status === "string"
-      ? job.status
-      : typeof job.state === "string"
-        ? job.state
-        : "";
+export function isTerminalJob(job: Record<string, unknown>): boolean {
+  const status = typeof job.status === "string" ? job.status : "";
   return TERMINAL_JOB_STATUSES.has(status);
 }
 
@@ -375,12 +371,12 @@ server.tool(
     mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
     print_area_uuid: z.string().describe("UUID of the print area to render into (from get_2d_mockup, returned as quads[].print_area_id)."),
     artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
-    blend_mode: z.enum(["multiply", "normal"]).default("multiply").describe("How artwork blends with the product surface - 'multiply' (fabric, default), 'normal' (flat)"),
+    blend_mode: z.string().default("multiply").describe("Blend mode for artwork over the product surface: 'multiply' (fabric texture, default) or 'normal' (no texture). Free-form string -- other Photoshop blend modes the API supports are accepted too."),
     opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
     brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
     contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment (-100 to 100)"),
     saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment (-100 to 100)"),
-    warp_strength: z.number().min(0).max(2).default(1).describe("Surface displacement intensity (0.0-2.0, default 1.0). Higher = more surface warp effect."),
+    warp_strength: z.number().min(0).max(2).default(1.5).describe("Mesh warp strength for fabric curvature (0.0-2.0, 0=disabled, default 1.5). Higher = more surface warp effect."),
     rotation: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees (-360 to 360)"),
     position: z
       .enum([
@@ -609,7 +605,7 @@ server.tool(
           timed_out: true,
           job_id,
           waited_seconds: timeout_seconds,
-          last_status: job.status ?? job.state ?? "unknown",
+          last_status: job.status ?? "unknown",
           message:
             "Job did not reach a terminal state within timeout_seconds. It may still be running -- call get_job later to check.",
           last_job: job,
@@ -630,19 +626,26 @@ server.tool(
 
 server.tool(
   "render_video",
-  "Animate a mockup into an AI video clip. Produces a still render from the mockup (same shape as render_mockup), then animates it with an auto-routed image-to-video model. ALWAYS async: returns 202 with a job_id immediately -- pair with get_job or wait_for_job. Credit cost is computed from model x duration x audio (free tier: 1 video for the lifetime of the account). duration_seconds must be one of the chosen model's allowed durations or the call fails with 400.",
+  "Animate a mockup into an AI video clip. TWO input modes (supply exactly one): RENDER mode (mockup_uuid + smart_object_uuid + artwork) produces a still render from the mockup (same shape as render_mockup), then animates it; RAW-IMAGE mode (image_url) animates a public image URL directly with no render step. Either way an auto-routed image-to-video model does the animation. ALWAYS async: returns 202 with a job_id immediately -- pair with get_job or wait_for_job. Credit cost is computed from model x duration x audio. duration_seconds must be one of the chosen model's allowed durations or the call fails with 400.",
   {
-    mockup_uuid: z.string().describe("UUID of the mockup to animate (from list_mockups or upload_psd)"),
-    smart_object_uuid: z.string().describe("UUID of the smart object layer to place artwork on (from get_mockup_details)"),
-    artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup before animating"),
-    fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How artwork fills the smart object area in the still frame"),
+    mockup_uuid: z.string().optional().describe("RENDER MODE: UUID of the mockup to animate (from list_mockups or upload_psd). Required in render mode. In raw-image mode it is an optional association (groups the clip under that mockup's 'Past clips')."),
+    smart_object_uuid: z.string().optional().describe("RENDER MODE: UUID of the smart object layer to place artwork on (from get_mockup_details). Required in render mode; omit in raw-image mode."),
+    artwork_url: z.string().optional().describe("RENDER MODE: public URL of the artwork image (PNG/JPG/WebP) to place on the mockup before animating. Provide this OR artwork_base64. Omit in raw-image mode."),
+    artwork_base64: z.string().optional().describe("RENDER MODE: raw base64-encoded artwork bytes (no data: prefix). Alternative to artwork_url that skips a server-side download (faster). Provide this OR artwork_url."),
+    artwork_content_type: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]).optional().describe("MIME type for artwork_base64 (defaults to image/png if omitted)."),
+    image_url: z.string().optional().describe("RAW-IMAGE MODE: a public https png/jpg URL to animate directly (general image-to-video, no render step). Supply this OR (mockup_uuid + smart_object_uuid + artwork), never both."),
+    fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("RENDER MODE: how artwork fills the smart object area in the still frame"),
+    asset_width: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork width in pixels (overrides fit sizing)."),
+    asset_height: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork height in pixels (overrides fit sizing)."),
+    asset_top: z.number().int().optional().describe("RENDER MODE: artwork top offset in pixels within the smart object area."),
+    asset_left: z.number().int().optional().describe("RENDER MODE: artwork left offset in pixels within the smart object area."),
     duration_seconds: z
       .number()
       .int()
       .min(1)
       .max(15)
-      .default(4)
-      .describe("Clip length in seconds. Must be one of the auto-routed model's allowed durations or the call is rejected with 400 (INVALID_VIDEO_DURATION). Allowed sets: Veo [4,6,8] (the default-tier primary), Kling v3 Pro [3..15], Kling 2.6 Pro / Seedance / Wan [5,10]. Default 4 is the only value valid across the default-tier Veo route. Cost scales with this value."),
+      .default(5)
+      .describe("Clip length in seconds chosen by you. Must be one of the auto-routed model's allowed durations (e.g. Veo [4,5,6,8], Kling [5,10]) or the call is rejected with 400 (INVALID_VIDEO_DURATION). The 1-15 bound here is a coarse guard; the per-model set is the real constraint. The credit cost scales with this value."),
     audio: z
       .boolean()
       .default(false)
@@ -674,13 +677,6 @@ server.tool(
     }
 
     const body: Record<string, unknown> = {
-      mockup_uuid: args.mockup_uuid,
-      smart_objects: [
-        {
-          uuid: args.smart_object_uuid,
-          asset: { url: args.artwork_url, fit: args.fit },
-        },
-      ],
       export_options: {
         image_format: args.image_format,
         image_size: args.image_size,
@@ -688,6 +684,30 @@ server.tool(
       },
       video,
     };
+
+    if (args.image_url) {
+      // RAW-IMAGE mode: animate the URL directly (no render). mockup_uuid, when
+      // present, is an optional association only -- the API ignores it as a render
+      // input. The two render-vs-raw modes are mutually exclusive (BE enforces XOR).
+      body.image_url = args.image_url;
+      if (args.mockup_uuid) body.mockup_uuid = args.mockup_uuid;
+    } else {
+      // RENDER mode: build the i2v input still from the mockup + artwork.
+      const asset: Record<string, unknown> = { fit: args.fit };
+      if (args.artwork_url) asset.url = args.artwork_url;
+      if (args.artwork_base64) {
+        asset.base64 = args.artwork_base64;
+        if (args.artwork_content_type) asset.content_type = args.artwork_content_type;
+      }
+      if (args.asset_width !== undefined || args.asset_height !== undefined) {
+        asset.size = { width: args.asset_width, height: args.asset_height };
+      }
+      if (args.asset_top !== undefined || args.asset_left !== undefined) {
+        asset.position = { top: args.asset_top, left: args.asset_left };
+      }
+      body.mockup_uuid = args.mockup_uuid;
+      body.smart_objects = [{ uuid: args.smart_object_uuid, asset }];
+    }
 
     if (args.webhook_url) {
       body.webhook = { url: args.webhook_url };
@@ -922,7 +942,18 @@ async function main() {
   await server.connect(transport);
 }
 
-main().catch((err) => {
-  console.error("SudoMock MCP server failed to start:", err);
-  process.exit(1);
-});
+// Only start the stdio transport when this file is executed directly (the bin
+// entrypoint). When imported (e.g. by the test suite) we expose `server` without
+// connecting, so tests can introspect it over an in-memory transport.
+const isEntrypoint =
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isEntrypoint) {
+  main().catch((err) => {
+    console.error("SudoMock MCP server failed to start:", err);
+    process.exit(1);
+  });
+}
+
+export { server };
