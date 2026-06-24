@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # OIDC trusted publishing (token-less, like n8n)
 
 jobs:
   publish:
@@ -19,6 +20,4 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run build
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --provenance --access public
