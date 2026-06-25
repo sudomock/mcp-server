@@ -366,7 +366,7 @@ server.tool(
 
 server.tool(
   "render_2d_mockup",
-  "Render artwork onto a saved 2D mockup template (no PSD needed) with perspective correction. Needs mockup_uuid + print_area_uuid. Use list_2d_mockups to find mockup_uuid, then get_2d_mockup to read its quads[].print_area_id for print_area_uuid. Returns the CDN URL of the rendered image. Costs 5 credits. The mockup must be in 'ready' status (depth computation complete).",
+  "Render artwork onto a saved 2D mockup template (no PSD needed) with perspective correction. Needs mockup_uuid + print_area_uuid. Use list_2d_mockups to find mockup_uuid, then get_2d_mockup to read its quads[].print_area_id for print_area_uuid. Returns the CDN URL of the rendered image. Costs 5 credits. The mockup must be in 'ready' status before it can be rendered.",
   {
     mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
     print_area_uuid: z.string().describe("UUID of the print area to render into (from get_2d_mockup, returned as quads[].print_area_id)."),
@@ -376,7 +376,7 @@ server.tool(
     brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
     contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment (-100 to 100)"),
     saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment (-100 to 100)"),
-    warp_strength: z.number().min(0).max(2).default(1.5).describe("Mesh warp strength for fabric curvature (0.0-2.0, 0=disabled, default 1.5). Higher = more surface warp effect."),
+    warp_strength: z.number().min(0).max(2).default(1.5).describe("Warp strength for fabric curvature (0.0-2.0, 0=disabled, default 1.5). Higher = artwork conforms more closely to the surface."),
     rotation: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees (-360 to 360)"),
     position: z
       .enum([
@@ -484,7 +484,7 @@ server.tool(
 
 server.tool(
   "delete_2d_mockup",
-  "Permanently delete a SudoAI 2D mockup template (and its masks, quads, and stored files). Cannot be undone. Costs 0 credits.",
+  "Permanently delete a SudoAI 2D mockup template and all of its data. Cannot be undone. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"),
   },
