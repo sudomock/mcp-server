@@ -46,11 +46,13 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `list_mockups` | List your uploaded mockup templates | 0 |
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
 | `render_mockup` | Render a mockup with your artwork | 1 |
+| `create_2d_mockup` | Create a 2D mockup and detect printable surfaces automatically | 25 |
 | `render_2d_mockup` | Render artwork onto a saved 2D mockup template (no PSD) | 5 |
 | `render_video` | Animate a mockup into an AI video clip (always async) | cost-based (free: 1/lifetime) |
 | `upload_psd` | Upload a Photoshop PSD/PSB template (sync or async) | 0 |
 | `list_2d_mockups` | List your saved SudoAI 2D mockup templates | 0 |
 | `get_2d_mockup` | Get one 2D mockup's details + print-area UUIDs | 0 |
+| `update_2d_print_areas` | Update a 2D mockup's print-area geometry | 0 |
 | `delete_2d_mockup` | Delete a 2D mockup template | 0 |
 | `get_job` | Check the status of an async job by job_id | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
