@@ -72,9 +72,10 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 
 ### Async jobs
 
-`render_mockup` and `upload_psd` accept `is_async: true`, and `render_video` is
-always async. These return a `job_id` immediately (HTTP 202) instead of a
-final result. Poll it with `get_job`, or let `wait_for_job` block until the job
+`render_mockup`, `upload_psd`, and `create_2d_mockup` accept `is_async: true`,
+and `render_video` is always async. These return a `job_id` immediately
+(HTTP 202) instead of a final result. (`create_2d_mockup` is synchronous by
+default and returns the mockup itself.) Poll it with `get_job`, or let `wait_for_job` block until the job
 reaches a terminal status and hands back `result_url`, `mockup_uuid`, `model`,
 `credits_charged`, and `payg` (`{credits, unit_price, cost}` for pay-as-you-go
 jobs, otherwise `null`).
