@@ -1,0 +1,26 @@
+# Changelog
+
+## 2.0.0
+
+**BREAKING** — aligns the 2D-mockup tools with the finalized API contract.
+
+- `create_2d_mockup` is now **synchronous by default**: it returns the mockup
+  (`mockup_id`, `name`, `status`, `source_width`, `source_height`, `print_areas`)
+  directly from the 201 response with no polling. Pass `is_async: true` to queue
+  and receive a `job_id` to poll with `get_job` / `wait_for_job`. The previous
+  always-async "wait up to 50s then return job details" behavior is removed.
+- All 2D-mockup paths are now **plural** (`/api/v1/sudoai/2d-mockups...`):
+  - `render_2d_mockup` posts to `/api/v1/sudoai/2d-mockups/{mockup_uuid}/render`
+    with the mockup id in the **path** (removed from the request body). It now
+    returns `print_files[].export_path` + `render_uuid`.
+  - `get_2d_mockup`, `delete_2d_mockup`, and `update_2d_print_areas` use the
+    plural `/2d-mockups/{id}` paths.
+- `create_2d_mockup` accepts optional customer-seeded `print_areas`, and
+  `update_2d_print_areas` print areas now accept an optional `name`.
+- Version strings realigned (USER_AGENT + server manifest were still `1.4.0`
+  while the package was `1.4.1`).
+
+## 1.4.1
+
+- MCP registry publish + `server.json` description fix.
+</content>
