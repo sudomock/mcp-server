@@ -23,7 +23,7 @@ import { z } from "zod";
 const BASE_URL = "https://api.sudomock.com";
 const DEFAULT_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 120_000;
-const USER_AGENT = "SudoMock-MCP/2.0.0 (stdio)";
+const USER_AGENT = "SudoMock-MCP/2.1.0 (stdio)";
 
 function getApiKey(): string {
   const key = process.env.SUDOMOCK_API_KEY;
@@ -170,7 +170,7 @@ export function isTerminalJob(job: Record<string, unknown>): boolean {
 
 const server = new McpServer({
   name: "SudoMock",
-  version: "2.0.0",
+  version: "2.1.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -488,6 +488,12 @@ server.tool(
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (100-10000, default 2048)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (1-100, default 90)"),
+    is_async: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel."
+      ),
   },
   async (args) => {
     const body: Record<string, unknown> = {
@@ -518,12 +524,22 @@ server.tool(
       },
     };
 
+    if (args.is_async) body.is_async = true;
+
     const result = await apiRequest({
       method: "POST",
       path: `/api/v1/sudoai/2d-mockups/${args.mockup_uuid}/render`,
       body,
       timeout: RENDER_TIMEOUT,
     });
+
+    // is_async=true -> 202 + job_id (kind "2d_render"); hand back the poll contract.
+    // Reuse get_job / wait_for_job to reach the terminal job (result_url).
+    if (args.is_async) {
+      return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
+    }
+
+    // Default sync -> 200 {data, success}.
     // Whitelist the render output to WHAT-only fields; never surface pipeline internals.
     const renderData =
       (result as { data?: { render_uuid?: string; print_files?: Array<Record<string, unknown>> } })?.data ?? {};

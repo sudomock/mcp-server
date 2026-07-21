@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.0
+
+- `render_2d_mockup` now accepts optional `is_async` (mirrors `create_2d_mockup`).
+  Default `false` returns `print_files` + `render_uuid` synchronously (200,
+  unchanged). Pass `is_async: true` to queue the render and receive a `job_id`
+  (202, `kind: "2d_render"`) to poll with `get_job` / `wait_for_job`; the
+  terminal job hands back `result_url`. Additive and backward-compatible.
+
 ## 2.0.0
 
 **BREAKING** — aligns the 2D-mockup tools with the finalized API contract.
