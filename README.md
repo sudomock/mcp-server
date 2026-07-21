@@ -72,10 +72,11 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 
 ### Async jobs
 
-`render_mockup`, `upload_psd`, and `create_2d_mockup` accept `is_async: true`,
-and `render_video` is always async. These return a `job_id` immediately
-(HTTP 202) instead of a final result. (`create_2d_mockup` is synchronous by
-default and returns the mockup itself.) Poll it with `get_job`, or let `wait_for_job` block until the job
+`render_mockup`, `upload_psd`, `create_2d_mockup`, and `render_2d_mockup` accept
+`is_async: true`, and `render_video` is always async. These return a `job_id`
+immediately (HTTP 202) instead of a final result. (`create_2d_mockup` and
+`render_2d_mockup` are synchronous by default and return the mockup / render
+directly.) Poll it with `get_job`, or let `wait_for_job` block until the job
 reaches a terminal status and hands back `result_url`, `mockup_uuid`, `model`,
 `credits_charged`, and `payg` (`{credits, unit_price, cost}` for pay-as-you-go
 jobs, otherwise `null`).
@@ -97,6 +98,7 @@ time and reject if `|now - timestamp| > 300s`. The delivery body is
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"
 - "List my 2D mockups, then render the first one with this artwork: https://example.com/logo.png"
 - "Render this design asynchronously and wait for it to finish"
+- "Queue that 2D mockup render async and give me the job id to track"
 - "Animate the hoodie mockup into a 5-second video clip"
 - "Upload this PSD as a new template: https://example.com/mockup.psd"
 - "Set up a webhook at https://example.com/hooks so I get notified when renders finish"
