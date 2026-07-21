@@ -106,12 +106,11 @@ test("render_video exposes raw-image mode + asset base64 + asset size/position",
   }
 });
 
-test("2D setup preserves paid-job handles and uses the public payload contract", async () => {
+test("2D create is sync-default (201) and every 2D path is plural + black-box", async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.SUDOMOCK_API_KEY;
   const quad = [[10, 20], [110, 20], [110, 120], [10, 120]];
   const idempotencyKeys = new Set<string>();
-  const pollAttempts = new Map<string, number>();
 
   globalThis.fetch = async (input, init) => {
     const url = String(input);
@@ -125,80 +124,55 @@ test("2D setup preserves paid-job handles and uses the public payload contract",
       idempotencyKeys.add(idempotencyKey);
 
       const body = JSON.parse(String(init?.body));
-      let outcome = "created";
+
+      // is_async=true -> 202 + job_id (poll path preserved).
+      if (body.is_async === true) {
+        return new Response(
+          JSON.stringify({
+            job_id: "job-async",
+            kind: "2d_create",
+            status: "queued",
+            status_url: "/api/v1/jobs/job-async",
+          }),
+          { status: 202, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
       if (body.source_base64) {
         assert.deepEqual(Object.keys(body).sort(), ["name", "source_base64"]);
         assert.equal(body.source_base64, "data:image/png;base64,c291cmNl");
       } else {
-        assert.deepEqual(Object.keys(body), ["source_url"]);
-        outcome = body.source_url.includes("unsuitable")
-          ? "rejected"
-          : body.source_url.includes("timeout")
-            ? "timeout"
-            : body.source_url.includes("pending")
-              ? "pending"
-              : body.source_url.includes("recover")
-                ? "recovered"
-                : "created";
+        // Unsuitable image -> BE rejects with an error body (credits refunded),
+        // no async job in the sync-default flow.
+        if (body.source_url.includes("unsuitable")) {
+          return Response.json(
+            { detail: "The image is not suitable for mockup generation." },
+            { status: 422 }
+          );
+        }
+        // Optional customer-seeded print areas (with names) pass through verbatim.
+        if (body.source_url.includes("seed")) {
+          assert.deepEqual(body.print_areas, [{ points: quad, name: "Front" }]);
+        }
       }
-      return new Response(
-        JSON.stringify({
-          job_id: `job-${outcome}`,
-          kind: "2d_create",
-          status: "queued",
-          status_url: `/api/v1/jobs/job-${outcome}`,
-        }),
-        { status: 202, headers: { "Content-Type": "application/json" } }
+
+      return Response.json(
+        {
+          data: {
+            mockup_id: "mockup-123",
+            name: body.name ?? null,
+            status: "ready",
+            source_width: 1200,
+            source_height: 900,
+            quads: [{ print_area_id: "area-1", points: quad }],
+          },
+          success: true,
+        },
+        { status: 201 }
       );
     }
 
-    if (method === "GET" && url.endsWith("/api/v1/jobs/job-created")) {
-      return Response.json({
-        job_id: "job-created",
-        status: "succeeded",
-        mockup_uuid: "mockup-123",
-        result_url: "/api/v1/sudoai/2d-mockup/mockup-123",
-      });
-    }
-
-    if (method === "GET" && url.endsWith("/api/v1/jobs/job-rejected")) {
-      return Response.json({
-        job_id: "job-rejected",
-        kind: "2d_create",
-        status: "failed",
-        result_url: null,
-        mockup_uuid: null,
-        error: {
-          error_code: "NOT_MOCKUPABLE",
-          message: "The image is not suitable for mockup generation.",
-        },
-      });
-    }
-
-    if (method === "GET" && url.endsWith("/api/v1/jobs/job-timeout")) {
-      return Response.json({ job_id: "job-timeout", status: "running" });
-    }
-
-    if (method === "GET" && url.endsWith("/api/v1/jobs/job-pending")) {
-      pollAttempts.set("pending", (pollAttempts.get("pending") ?? 0) + 1);
-      return Response.json({ detail: "temporary failure" }, { status: 500 });
-    }
-
-    if (method === "GET" && url.endsWith("/api/v1/jobs/job-recovered")) {
-      const attempts = (pollAttempts.get("recovered") ?? 0) + 1;
-      pollAttempts.set("recovered", attempts);
-      if (attempts === 1) {
-        return Response.json({ detail: "temporary failure" }, { status: 500 });
-      }
-      return Response.json({
-        job_id: "job-recovered",
-        status: "succeeded",
-        mockup_uuid: "mockup-recovered",
-        result_url: "/api/v1/sudoai/2d-mockup/mockup-recovered",
-      });
-    }
-
-    if (method === "GET" && url.endsWith("/api/v1/sudoai/2d-mockup/mockup-123")) {
+    if (method === "GET" && url.endsWith("/api/v1/sudoai/2d-mockups/mockup-123")) {
       return Response.json({
         data: {
           mockup_id: "mockup-123",
@@ -211,13 +185,29 @@ test("2D setup preserves paid-job handles and uses the public payload contract",
       });
     }
 
-    if (method === "GET" && url.endsWith("/api/v1/sudoai/2d-mockup/mockup-recovered")) {
-      return Response.json({ detail: "temporary failure" }, { status: 500 });
+    if (method === "POST" && url.endsWith("/api/v1/sudoai/2d-mockups/mockup-123/render")) {
+      const body = JSON.parse(String(init?.body));
+      // render carries the mockup id in the PATH, never in the body.
+      assert.ok(!("mockup_uuid" in body), "render body must not carry mockup_uuid");
+      assert.equal(body.print_areas[0].uuid, "area-1");
+      assert.ok(!("mockup_uuid" in body.print_areas[0]));
+      return Response.json({
+        data: {
+          print_files: [{ export_path: "/renders/out.webp" }],
+          render_uuid: "render-1",
+        },
+        success: true,
+      });
     }
 
-    if (method === "PUT" && url.endsWith("/api/v1/sudoai/2d-mockup/mockup-123/print-areas")) {
-      assert.deepEqual(JSON.parse(String(init?.body)), { print_areas: [{ points: quad }] });
-      return Response.json({ data: { print_areas: [{ print_area_id: "area-2", points: quad }] }, success: true });
+    if (method === "PUT" && url.endsWith("/api/v1/sudoai/2d-mockups/mockup-123/print-areas")) {
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        print_areas: [{ points: quad, name: "Front" }],
+      });
+      return Response.json({
+        data: { print_areas: [{ print_area_id: "area-2", points: quad, name: "Front" }] },
+        success: true,
+      });
     }
 
     throw new Error(`Unexpected request: ${method} ${url}`);
@@ -226,6 +216,7 @@ test("2D setup preserves paid-job handles and uses the public payload contract",
 
   const client = await connectClient();
   try {
+    // Sync-default create returns the mockup directly (201), no poll.
     const createdResult = await client.callTool({
       name: "create_2d_mockup",
       arguments: {
@@ -238,7 +229,10 @@ test("2D setup preserves paid-job handles and uses the public payload contract",
       (createdResult.content as Array<{ type: "text"; text: string }>)[0].text
     );
     assert.equal(created.mockup_id, "mockup-123");
+    assert.equal(created.name, "Product");
+    assert.equal(created.status, "ready");
     assert.equal(created.source_width, 1200);
+    // Black-box: quads surfaced as print_areas, no mask/segment primitives.
     assert.deepEqual(created.print_areas, [{ print_area_id: "area-1", points: quad }]);
 
     const detailsResult = await client.callTool({
@@ -251,16 +245,12 @@ test("2D setup preserves paid-job handles and uses the public payload contract",
     assert.deepEqual(details.data.print_areas, [{ print_area_id: "area-1", points: quad }]);
     assert.ok(!("quads" in details.data));
 
+    // Unsuitable image -> error body -> tool surfaces an error result.
     const rejectedResult = await client.callTool({
       name: "create_2d_mockup",
       arguments: { source_url: "https://example.com/unsuitable.jpg" },
     });
-    const rejected = JSON.parse(
-      (rejectedResult.content as Array<{ type: "text"; text: string }>)[0].text
-    );
-    assert.equal(rejected.error_code, "NOT_MOCKUPABLE");
-    assert.equal(rejected.reason, "The image is not suitable for mockup generation.");
-    assert.equal(rejected.message, "credits refunded automatically");
+    assert.equal(rejectedResult.isError, true);
 
     const neitherSource = await client.callTool({
       name: "create_2d_mockup",
@@ -273,60 +263,59 @@ test("2D setup preserves paid-job handles and uses the public payload contract",
     });
     assert.equal(bothSources.isError, true);
 
-    const originalDateNow = Date.now;
-    const times = [0, 0, 50_000];
-    Date.now = () => times.shift() ?? 50_000;
-    try {
-      const timeoutResult = await client.callTool({
-        name: "create_2d_mockup",
-        arguments: { source_url: "https://example.com/timeout.jpg" },
-      });
-      const timedOut = JSON.parse(
-        (timeoutResult.content as Array<{ type: "text"; text: string }>)[0].text
-      );
-      assert.equal(timedOut.status, "timed_out");
-      assert.equal(timedOut.job_id, "job-timeout");
-      assert.equal(timedOut.status_url, "/api/v1/jobs/job-timeout");
-      assert.match(timedOut.next_step, /get_job/);
-    } finally {
-      Date.now = originalDateNow;
-    }
-
-    const pendingResult = await client.callTool({
+    // Customer-seeded print areas (with names) pass through to the create body.
+    const seededResult = await client.callTool({
       name: "create_2d_mockup",
-      arguments: { source_url: "https://example.com/pending.jpg" },
+      arguments: {
+        source_url: "https://example.com/seed.jpg",
+        print_areas: [{ points: quad, name: "Front" }],
+      },
     });
-    const pending = JSON.parse(
-      (pendingResult.content as Array<{ type: "text"; text: string }>)[0].text
+    const seeded = JSON.parse(
+      (seededResult.content as Array<{ type: "text"; text: string }>)[0].text
     );
-    assert.equal(pollAttempts.get("pending"), 2);
-    assert.equal(pending.status, "pending");
-    assert.equal(pending.job_id, "job-pending");
-    assert.equal(pending.status_url, "/api/v1/jobs/job-pending");
+    assert.equal(seeded.mockup_id, "mockup-123");
 
-    const recoveredResult = await client.callTool({
+    // is_async=true still returns the job-accepted contract.
+    const asyncResult = await client.callTool({
       name: "create_2d_mockup",
-      arguments: { source_url: "https://example.com/recover.jpg" },
+      arguments: { source_url: "https://example.com/async.jpg", is_async: true },
     });
-    const recovered = JSON.parse(
-      (recoveredResult.content as Array<{ type: "text"; text: string }>)[0].text
+    const asyncJob = JSON.parse(
+      (asyncResult.content as Array<{ type: "text"; text: string }>)[0].text
     );
-    assert.equal(pollAttempts.get("recovered"), 2);
-    assert.deepEqual(recovered, {
-      mockup_id: "mockup-recovered",
-      result_url: "/api/v1/sudoai/2d-mockup/mockup-recovered",
-      status_url: "/api/v1/jobs/job-recovered",
+    assert.equal(asyncJob.accepted, true);
+    assert.equal(asyncJob.job_id, "job-async");
+    assert.equal(asyncJob.status_url, "/api/v1/jobs/job-async");
+
+    // render posts to the plural path with the id in the path + print_files/render_uuid back.
+    const renderResult = await client.callTool({
+      name: "render_2d_mockup",
+      arguments: {
+        mockup_uuid: "mockup-123",
+        print_area_uuid: "area-1",
+        artwork_url: "https://example.com/art.png",
+      },
     });
+    const rendered = JSON.parse(
+      (renderResult.content as Array<{ type: "text"; text: string }>)[0].text
+    );
+    assert.equal(rendered.data.render_uuid, "render-1");
+    assert.equal(rendered.data.print_files[0].export_path, "/renders/out.webp");
 
     const updatedResult = await client.callTool({
       name: "update_2d_print_areas",
-      arguments: { mockup_id: "mockup-123", print_areas: [{ points: quad }] },
+      arguments: { mockup_id: "mockup-123", print_areas: [{ points: quad, name: "Front" }] },
     });
     const updated = JSON.parse(
       (updatedResult.content as Array<{ type: "text"; text: string }>)[0].text
     );
     assert.equal(updated.data.print_areas[0].print_area_id, "area-2");
-    assert.equal(idempotencyKeys.size, 5);
+    assert.equal(updated.data.print_areas[0].name, "Front");
+
+    // Four creates reached the POST (base64, unsuitable, seed, async); neither/both
+    // fail validation before any request.
+    assert.equal(idempotencyKeys.size, 4);
   } finally {
     await client.close();
     await server.close();

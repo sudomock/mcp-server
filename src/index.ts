@@ -23,7 +23,7 @@ import { z } from "zod";
 const BASE_URL = "https://api.sudomock.com";
 const DEFAULT_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 120_000;
-const USER_AGENT = "SudoMock-MCP/1.4.0 (stdio)";
+const USER_AGENT = "SudoMock-MCP/2.0.0 (stdio)";
 
 function getApiKey(): string {
   const key = process.env.SUDOMOCK_API_KEY;
@@ -170,7 +170,7 @@ export function isTerminalJob(job: Record<string, unknown>): boolean {
 
 const server = new McpServer({
   name: "SudoMock",
-  version: "1.4.0",
+  version: "2.0.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -370,14 +370,34 @@ server.tool(
 
 server.tool(
   "create_2d_mockup",
-  "Create a reusable 2D mockup from an image URL or base64 data. Detects printable surfaces automatically and returns the mockup ID and print-area geometry. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Waits up to 50 seconds; if creation is still in progress, returns job details to check later. Use the dashboard for visual fine-tuning.",
+  "Create a reusable 2D mockup from an image URL or base64 data. Detects printable surfaces automatically and returns the mockup ID and print-area geometry synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
   {
     source_url: z.string().optional().describe("Public HTTPS URL of the product image. Provide exactly one of source_url or source_base64."),
     source_base64: z.string().optional().describe("Raw base64-encoded JPEG, PNG, or WebP bytes. Provide exactly one of source_url or source_base64."),
     source_content_type: z.enum(["image/png", "image/jpeg", "image/webp"]).optional().describe("MIME type for source_base64"),
     name: z.string().optional().describe("Optional display name for the 2D mockup"),
+    print_areas: z
+      .array(
+        z.object({
+          points: z
+            .array(z.tuple([z.number(), z.number()]))
+            .length(4)
+            .describe("Four [x, y] points in top-left, top-right, bottom-right, bottom-left order"),
+          name: z.string().optional().describe("Optional display name for this print area"),
+        })
+      )
+      .min(1)
+      .max(8)
+      .optional()
+      .describe("Optional seed print areas (1-8 four-point quads). Omit to let printable surfaces be detected automatically."),
+    is_async: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Queue creation instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and returns the mockup. Default false returns the mockup synchronously (201)."
+      ),
   },
-  async ({ source_url, source_base64, source_content_type, name }) => {
+  async ({ source_url, source_base64, source_content_type, name, print_areas, is_async }) => {
     const hasUrl = Boolean(source_url?.trim());
     const hasBase64 = Boolean(source_base64?.trim());
     if (hasUrl === hasBase64) {
@@ -395,113 +415,37 @@ server.tool(
             : source_base64!.trim(),
         };
     if (name) body.name = name;
+    if (print_areas) body.print_areas = print_areas;
+    if (is_async) body.is_async = true;
 
-    const deadline = Date.now() + 50_000;
-    const accepted = (await apiRequest({
+    const result = (await apiRequest({
       method: "POST",
       path: "/api/v1/sudoai/2d-mockups",
       body,
       headers: { "Idempotency-Key": randomUUID() },
     })) as Record<string, unknown>;
 
-    const jobId = typeof accepted.job_id === "string" ? accepted.job_id : "";
-    if (!jobId) {
-      throw new Error("2D mockup creation did not return a job_id.");
+    // is_async=true -> 202 + job_id; hand back the poll contract.
+    if (is_async) {
+      return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
     }
 
-    const statusUrl =
-      typeof accepted.status_url === "string"
-        ? accepted.status_url
-        : `/api/v1/jobs/${jobId}`;
-    let job = accepted;
-    const recoveryResult = (status: "timed_out" | "pending", error?: unknown) => {
-      const recovery = {
-        status,
-        job_id: jobId,
-        status_url: statusUrl,
-        last_status: job.status ?? "unknown",
-        ...(error instanceof Error ? { poll_error: error.message } : {}),
-        next_step: "Call get_job with this job_id to check the creation status.",
-      };
-      return { content: [{ type: "text" as const, text: JSON.stringify(recovery, null, 2) }] };
-    };
-
-    while (!isTerminalJob(job)) {
-      let pollError: unknown;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) return recoveryResult("timed_out");
-        try {
-          job = await getJob(jobId, remaining);
-          pollError = undefined;
-          break;
-        } catch (error) {
-          pollError = error;
-        }
-      }
-      if (pollError) {
-        return recoveryResult(Date.now() >= deadline ? "timed_out" : "pending", pollError);
-      }
-      if (!isTerminalJob(job)) {
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) return recoveryResult("timed_out");
-        await new Promise((resolve) => setTimeout(resolve, Math.min(2_500, remaining)));
-      }
-    }
-
-    if (job.status === "failed") {
-      const failure = job.error as { error_code?: unknown; message?: unknown } | undefined;
-      if (failure?.error_code === "NOT_MOCKUPABLE") {
-        const rejected = {
-          success: false,
-          job_id: jobId,
-          error_code: "NOT_MOCKUPABLE",
-          reason:
-            typeof failure.message === "string" && failure.message.trim()
-              ? failure.message
-              : "The source image is not suitable for a 2D mockup.",
-          message: "credits refunded automatically",
-        };
-        return { content: [{ type: "text" as const, text: JSON.stringify(rejected, null, 2) }] };
-      }
-      return { content: [{ type: "text" as const, text: JSON.stringify(job, null, 2) }] };
-    }
-
-    const mockupId = typeof job.mockup_uuid === "string" ? job.mockup_uuid : "";
-    if (!mockupId) {
-      throw new Error("Completed 2D mockup creation did not return a mockup ID.");
-    }
-
-    const resultUrl =
-      typeof job.result_url === "string" && job.result_url
-        ? job.result_url
-        : `/api/v1/sudoai/2d-mockup/${mockupId}`;
-    const fallback = { mockup_id: mockupId, result_url: resultUrl, status_url: statusUrl };
-    const detailTimeout = deadline - Date.now();
-    if (detailTimeout <= 0) {
-      return { content: [{ type: "text" as const, text: JSON.stringify(fallback, null, 2) }] };
-    }
-
-    let result: Record<string, unknown>;
-    try {
-      result = (await apiRequest({
-        method: "GET",
-        path: `/api/v1/sudoai/2d-mockup/${mockupId}`,
-        timeout: detailTimeout,
-      })) as Record<string, unknown>;
-    } catch {
-      return { content: [{ type: "text" as const, text: JSON.stringify(fallback, null, 2) }] };
-    }
+    // Default sync -> 201 {data, success}. Read the mockup directly, no poll.
     const details =
       result.data && typeof result.data === "object"
         ? (result.data as Record<string, unknown>)
         : result;
     const summary = {
-      ...fallback,
+      mockup_id: details.mockup_id ?? null,
+      name: details.name ?? null,
       status: details.status ?? "ready",
       source_width: details.source_width ?? null,
       source_height: details.source_height ?? null,
-      print_areas: Array.isArray(details.quads) ? details.quads : [],
+      print_areas: Array.isArray(details.quads)
+        ? details.quads
+        : Array.isArray(details.print_areas)
+          ? details.print_areas
+          : [],
     };
     return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
   }
@@ -513,7 +457,7 @@ server.tool(
 
 server.tool(
   "render_2d_mockup",
-  "Render artwork onto a saved 2D mockup template and return the rendered image URL. Costs 5 credits. Create a template with create_2d_mockup or choose one with list_2d_mockups, then use get_2d_mockup to choose a print area. Use the dashboard for visual fine-tuning.",
+  "Render artwork onto a saved 2D mockup template. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Create a template with create_2d_mockup or choose one with list_2d_mockups, then use get_2d_mockup to choose a print area. Use the dashboard for visual fine-tuning.",
   {
     mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
     print_area_uuid: z.string().describe("UUID of the print area to render into (from get_2d_mockup, returned as print_areas[].print_area_id)."),
@@ -547,7 +491,6 @@ server.tool(
   },
   async (args) => {
     const body: Record<string, unknown> = {
-      mockup_uuid: args.mockup_uuid,
       print_areas: [
         {
           uuid: args.print_area_uuid,
@@ -577,11 +520,25 @@ server.tool(
 
     const result = await apiRequest({
       method: "POST",
-      path: "/api/v1/sudoai/2d-mockup/render",
+      path: `/api/v1/sudoai/2d-mockups/${args.mockup_uuid}/render`,
       body,
       timeout: RENDER_TIMEOUT,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    // Whitelist the render output to WHAT-only fields; never surface pipeline internals.
+    const renderData =
+      (result as { data?: { render_uuid?: string; print_files?: Array<Record<string, unknown>> } })?.data ?? {};
+    const rendered = {
+      data: {
+        render_uuid: renderData.render_uuid,
+        print_files: (renderData.print_files ?? []).map((f) => ({
+          export_path: f.export_path,
+          export_format: f.export_format,
+          duration_ms: f.duration_ms,
+        })),
+      },
+      success: true,
+    };
+    return { content: [{ type: "text" as const, text: JSON.stringify(rendered, null, 2) }] };
   }
 );
 
@@ -619,7 +576,7 @@ server.tool(
   async ({ mockup_id }) => {
     const result = (await apiRequest({
       method: "GET",
-      path: `/api/v1/sudoai/2d-mockup/${mockup_id}`,
+      path: `/api/v1/sudoai/2d-mockups/${mockup_id}`,
     })) as Record<string, unknown>;
     const details =
       result.data && typeof result.data === "object"
@@ -655,16 +612,17 @@ server.tool(
             .array(z.tuple([z.number(), z.number()]))
             .length(4)
             .describe("Four [x, y] points in top-left, top-right, bottom-right, bottom-left order"),
+          name: z.string().optional().describe("Optional display name for this print area"),
         })
       )
       .min(1)
       .max(8)
-      .describe("Replacement print areas (1-8 four-point quads)"),
+      .describe("Replacement print areas (1-8 four-point quads, each with an optional name)"),
   },
   async ({ mockup_id, print_areas }) => {
     const result = await apiRequest({
       method: "PUT",
-      path: `/api/v1/sudoai/2d-mockup/${mockup_id}/print-areas`,
+      path: `/api/v1/sudoai/2d-mockups/${mockup_id}/print-areas`,
       body: { print_areas },
     });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -684,7 +642,7 @@ server.tool(
   async ({ mockup_id }) => {
     const result = await apiRequest({
       method: "DELETE",
-      path: `/api/v1/sudoai/2d-mockup/${mockup_id}`,
+      path: `/api/v1/sudoai/2d-mockups/${mockup_id}`,
     });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
