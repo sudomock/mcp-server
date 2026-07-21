@@ -191,6 +191,18 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       assert.ok(!("mockup_uuid" in body), "render body must not carry mockup_uuid");
       assert.equal(body.print_areas[0].uuid, "area-1");
       assert.ok(!("mockup_uuid" in body.print_areas[0]));
+      // is_async=true -> 202 + job_id (kind "2d_render"), poll path preserved.
+      if (body.is_async === true) {
+        return new Response(
+          JSON.stringify({
+            job_id: "render-job-async",
+            kind: "2d_render",
+            status: "queued",
+            status_url: "/api/v1/jobs/render-job-async",
+          }),
+          { status: 202, headers: { "Content-Type": "application/json" } }
+        );
+      }
       return Response.json({
         data: {
           print_files: [{ export_path: "/renders/out.webp" }],
@@ -302,6 +314,24 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     );
     assert.equal(rendered.data.render_uuid, "render-1");
     assert.equal(rendered.data.print_files[0].export_path, "/renders/out.webp");
+
+    // render is_async=true returns the job-accepted contract (mirrors create).
+    const asyncRenderResult = await client.callTool({
+      name: "render_2d_mockup",
+      arguments: {
+        mockup_uuid: "mockup-123",
+        print_area_uuid: "area-1",
+        artwork_url: "https://example.com/art.png",
+        is_async: true,
+      },
+    });
+    const asyncRender = JSON.parse(
+      (asyncRenderResult.content as Array<{ type: "text"; text: string }>)[0].text
+    );
+    assert.equal(asyncRender.accepted, true);
+    assert.equal(asyncRender.job_id, "render-job-async");
+    assert.equal(asyncRender.kind, "2d_render");
+    assert.equal(asyncRender.status_url, "/api/v1/jobs/render-job-async");
 
     const updatedResult = await client.callTool({
       name: "update_2d_print_areas",
