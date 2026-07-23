@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.0
+
+- `render_mockup` accepts one or more `smart_objects` and editable `text_layers`
+  while preserving the existing singular smart-object arguments.
+- `create_studio_session` supports PSD and 2D session types.
+- Webhook subscriptions include all 11 current events, and job filtering includes
+  `2d_create` and `2d_render`.
+- Public descriptions and caller-visible errors now use outcome-only copy.
+
 ## 2.1.0
 
 - `render_2d_mockup` now accepts optional `is_async` (mirrors `create_2d_mockup`).
