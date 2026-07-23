@@ -2,7 +2,7 @@
 
 > Generate photorealistic product mockups from Claude, Cursor, Windsurf, and VS Code.
 
-[Model Context Protocol](https://modelcontextprotocol.io/introduction) server for the [SudoMock](https://sudomock.com) mockup generation API. Upload PSD templates, place artwork onto smart objects, and get CDN-hosted renders -- all through natural language.
+[Model Context Protocol](https://modelcontextprotocol.io/introduction) server for the [SudoMock](https://sudomock.com) mockup generation API. Upload PSD templates, place artwork onto smart objects, edit supported text layers, and get rendered image URLs -- all through natural language.
 
 ## Quick Start
 
@@ -45,7 +45,7 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 |------|-------------|---------|
 | `list_mockups` | List your uploaded mockup templates | 0 |
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
-| `render_mockup` | Render a mockup with your artwork | 1 |
+| `render_mockup` | Render a mockup with artwork and/or editable text | 1 |
 | `create_2d_mockup` | Create a 2D mockup and detect printable surfaces automatically | 25 |
 | `render_2d_mockup` | Render artwork onto a saved 2D mockup template (no PSD) | 5 |
 | `render_video` | Animate a mockup into an AI video clip (always async) | cost-based (free: 1/lifetime) |
@@ -56,7 +56,7 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `delete_2d_mockup` | Delete a 2D mockup template | 0 |
 | `get_job` | Check the status of an async job by job_id | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
-| `list_jobs` | List your async jobs (renders, videos, uploads) | 0 |
+| `list_jobs` | List async render, video, upload, and 2D jobs | 0 |
 | `get_account` | Check plan, credits, and usage | 0 |
 | `update_mockup` | Rename a mockup template | 0 |
 | `delete_mockup` | Delete a mockup template | 0 |
@@ -90,12 +90,14 @@ creation/rotation) and `X-SudoMock-Timestamp` (unix seconds). Verify in constant
 time and reject if `|now - timestamp| > 300s`. The delivery body is
 `{event, job_id, kind, status, result_url, error, created_at}`. Event types:
 `render.succeeded`, `render.failed`, `upload.succeeded`, `video.succeeded`,
-`video.failed`, `webhook.test`.
+`video.failed`, `2d_mockup.ready`, `2d_mockup.rejected`, `2d_mockup.failed`,
+`2d_render.succeeded`, `2d_render.failed`, `webhook.test`.
 
 ## Example Prompts
 
 - "List my mockup templates"
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"
+- "Replace the editable headline text, then render the mockup"
 - "List my 2D mockups, then render the first one with this artwork: https://example.com/logo.png"
 - "Render this design asynchronously and wait for it to finish"
 - "Queue that 2D mockup render async and give me the job id to track"
