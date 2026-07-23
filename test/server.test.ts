@@ -106,6 +106,168 @@ test("render_video exposes raw-image mode + asset base64 + asset size/position",
   }
 });
 
+test("exposes the deployed render, Studio, webhook, and job contracts", async () => {
+  type Schema = {
+    default?: unknown;
+    enum?: string[];
+    items?: Schema;
+    properties?: Record<string, Schema>;
+    required?: string[];
+  };
+
+  const client = await connectClient();
+  try {
+    const { tools } = await client.listTools();
+    const schema = (name: string) => {
+      const tool = tools.find((candidate) => candidate.name === name);
+      assert.ok(tool, `${name} tool not found`);
+      return tool.inputSchema as Schema;
+    };
+
+    const render = schema("render_mockup");
+    const renderProps = render.properties ?? {};
+    assert.ok("smart_objects" in renderProps);
+    assert.ok("text_layers" in renderProps);
+    assert.ok(!("group_layers" in renderProps));
+    assert.equal(renderProps.text_layers.items?.properties?.fit.default, "overflow");
+    assert.deepEqual(render.required, ["mockup_uuid"]);
+
+    const studio = schema("create_studio_session");
+    assert.deepEqual(studio.properties?.mockup_type.enum, ["psd", "2d"]);
+    assert.deepEqual(studio.properties?.session_kind.enum, ["customize", "2d-setup", "2d-full"]);
+    assert.ok(!(studio.required ?? []).includes("mockup_uuid"));
+
+    const webhook = schema("create_webhook_endpoint");
+    assert.deepEqual(webhook.properties?.event_types.items?.enum, [
+      "render.succeeded",
+      "render.failed",
+      "upload.succeeded",
+      "video.succeeded",
+      "video.failed",
+      "2d_mockup.ready",
+      "2d_mockup.rejected",
+      "2d_mockup.failed",
+      "2d_render.succeeded",
+      "2d_render.failed",
+      "webhook.test",
+    ]);
+
+    const jobs = schema("list_jobs");
+    assert.deepEqual(jobs.properties?.kind.enum, [
+      "video",
+      "render",
+      "upload",
+      "2d_create",
+      "2d_render",
+    ]);
+
+    const publicToolCopy = JSON.stringify(tools).toLowerCase();
+    for (const forbidden of ["veo", "kling", "seedance", "server-side download", "auto-router", "cdn url"]) {
+      assert.ok(!publicToolCopy.includes(forbidden), `public tool copy contains ${forbidden}`);
+    }
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+test("render and Studio tools pass the new inputs without adding group_layers", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+
+  globalThis.fetch = async (input, init) => {
+    requests.push({
+      url: String(input),
+      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+    });
+    return Response.json({ success: true });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  try {
+    await client.callTool({
+      name: "render_mockup",
+      arguments: {
+        mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
+        smart_objects: [
+          {
+            uuid: "223e4567-e89b-12d3-a456-426614174001",
+            asset: { url: "https://example.com/front.png" },
+          },
+          {
+            uuid: "323e4567-e89b-12d3-a456-426614174002",
+            color: { hex: "#112233" },
+          },
+        ],
+        text_layers: [
+          {
+            uuid: "423e4567-e89b-12d3-a456-426614174003",
+            text: "New headline",
+          },
+        ],
+      },
+    });
+    await client.callTool({
+      name: "render_mockup",
+      arguments: {
+        mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
+        text_layers: [
+          {
+            uuid: "423e4567-e89b-12d3-a456-426614174003",
+            segments: [{ index: 1, text: "Styled replacement" }],
+          },
+        ],
+      },
+    });
+    await client.callTool({
+      name: "render_mockup",
+      arguments: {
+        mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
+        smart_object_uuid: "223e4567-e89b-12d3-a456-426614174001",
+        artwork_url: "https://example.com/legacy.png",
+      },
+    });
+    await client.callTool({
+      name: "create_studio_session",
+      arguments: {
+        mockup_type: "2d",
+        session_kind: "2d-setup",
+        allowed_origin: "https://shop.example",
+      },
+    });
+
+    const firstRender = requests[0].body;
+    assert.equal((firstRender.smart_objects as unknown[]).length, 2);
+    assert.equal((firstRender.text_layers as Array<{ fit: string }>)[0].fit, "overflow");
+    assert.ok(!("group_layers" in firstRender));
+
+    const textOnlyRender = requests[1].body;
+    assert.ok(!("smart_objects" in textOnlyRender));
+    assert.deepEqual(
+      (textOnlyRender.text_layers as Array<{ segments: unknown[] }>)[0].segments,
+      [{ index: 1, text: "Styled replacement" }]
+    );
+
+    const legacyRender = requests[2].body;
+    assert.equal((legacyRender.smart_objects as Array<{ uuid: string }>)[0].uuid, "223e4567-e89b-12d3-a456-426614174001");
+
+    assert.ok(requests[3].url.endsWith("/api/v1/studio/create-session"));
+    assert.deepEqual(requests[3].body, {
+      mockup_type: "2d",
+      session_kind: "2d-setup",
+      allowed_origin: "https://shop.example",
+    });
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
 test("2D create is sync-default (201) and every 2D path is plural + black-box", async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.SUDOMOCK_API_KEY;
@@ -263,6 +425,9 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       arguments: { source_url: "https://example.com/unsuitable.jpg" },
     });
     assert.equal(rejectedResult.isError, true);
+    const rejectedText = (rejectedResult.content as Array<{ type: "text"; text: string }>)[0].text;
+    assert.match(rejectedText, /Invalid parameters/);
+    assert.doesNotMatch(rejectedText, /not suitable for mockup generation/);
 
     const neitherSource = await client.callTool({
       name: "create_2d_mockup",

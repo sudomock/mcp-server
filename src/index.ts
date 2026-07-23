@@ -23,7 +23,7 @@ import { z } from "zod";
 const BASE_URL = "https://api.sudomock.com";
 const DEFAULT_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 120_000;
-const USER_AGENT = "SudoMock-MCP/2.1.0 (stdio)";
+const USER_AGENT = "SudoMock-MCP/2.2.0 (stdio)";
 
 function getApiKey(): string {
   const key = process.env.SUDOMOCK_API_KEY;
@@ -75,34 +75,35 @@ async function apiRequest({ method, path, params, body, headers: extraHeaders, t
   const timer = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const resp = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    });
+    let resp: Response;
+    try {
+      resp = await fetch(url, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+    } catch {
+      throw new Error(
+        controller.signal.aborted
+          ? "SudoMock request timed out. Retry the request."
+          : "Unable to reach SudoMock. Check your connection and retry."
+      );
+    }
 
     if (!resp.ok) {
-      let detail: string;
-      try {
-        const json = (await resp.json()) as { detail?: string };
-        detail = json.detail ?? resp.statusText;
-      } catch {
-        detail = resp.statusText;
-      }
-
       const errorMap: Record<number, string> = {
         401: `Invalid API key. Check your key at https://sudomock.com/dashboard/api-keys`,
-        402: `Insufficient credits. ${detail}`,
-        403: `Access denied. ${detail}`,
-        404: `Not found. ${detail}`,
-        409: `Conflict. ${detail}`,
-        422: `Invalid parameters: ${detail}`,
+        402: `Insufficient credits. Add credits and retry.`,
+        403: `Access denied. Check that your API key can access this item.`,
+        404: `Requested item was not found.`,
+        409: `Request conflicts with the item's current state. Refresh it and retry.`,
+        422: `Invalid parameters. Check the tool arguments and retry.`,
         429: `Rate limit exceeded. Wait and retry.`,
         500: `SudoMock server error. Try again in a moment.`,
       };
 
-      throw new Error(errorMap[resp.status] ?? `${method} ${path} failed (${resp.status}): ${detail}`);
+      throw new Error(errorMap[resp.status] ?? `SudoMock request failed (${resp.status}).`);
     }
 
     // 204 No Content
@@ -110,7 +111,11 @@ async function apiRequest({ method, path, params, body, headers: extraHeaders, t
       return { success: true };
     }
 
-    return await resp.json();
+    try {
+      return await resp.json();
+    } catch {
+      throw new Error("SudoMock returned an unreadable response. Try again.");
+    }
   } finally {
     clearTimeout(timer);
   }
@@ -170,7 +175,7 @@ export function isTerminalJob(job: Record<string, unknown>): boolean {
 
 const server = new McpServer({
   name: "SudoMock",
-  version: "2.1.0",
+  version: "2.2.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -262,18 +267,141 @@ server.tool(
 // Tool 5: render_mockup
 // ---------------------------------------------------------------------------
 
+const smartObjectInputSchema = z
+  .object({
+    uuid: z
+      .string()
+      .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+      .describe("UUID of the smart object layer"),
+    asset: z
+      .object({
+        url: z.string().optional().describe("Public URL or data URL of the artwork image"),
+        base64: z.string().optional().describe("Raw base64-encoded artwork bytes without a data URL prefix"),
+        content_type: z
+          .enum(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"])
+          .optional()
+          .describe("MIME type for base64 artwork; defaults to image/png"),
+        fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How artwork fills the smart object area"),
+        size: z
+          .object({
+            width: z.number().int().min(1).optional().describe("Artwork width in pixels"),
+            height: z.number().int().min(1).optional().describe("Artwork height in pixels"),
+          })
+          .optional()
+          .describe("Optional custom artwork size"),
+        position: z
+          .object({
+            top: z.number().int().optional().describe("Top offset in pixels"),
+            left: z.number().int().optional().describe("Left offset in pixels"),
+          })
+          .optional()
+          .describe("Optional custom artwork position"),
+        rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
+        flip_horizontal: z.boolean().default(false).describe("Mirror artwork left-right"),
+        flip_vertical: z.boolean().default(false).describe("Mirror artwork top-bottom"),
+      })
+      .refine((asset) => asset.url || asset.base64, "Provide asset.url or asset.base64")
+      .optional(),
+    color: z
+      .object({
+        hex: z.string().regex(/^#[0-9a-fA-F]{6}$/).describe("Color overlay as a six-digit hex code"),
+        blending_mode: z.string().default("normal").describe("Blend mode for the color overlay"),
+      })
+      .optional(),
+    adjustment_layers: z
+      .object({
+        brightness: z.number().int().min(-150).max(150).default(0),
+        contrast: z.number().int().min(-100).max(100).default(0),
+        opacity: z.number().int().min(0).max(100).default(100),
+        saturation: z.number().int().min(-100).max(100).default(0),
+        vibrance: z.number().int().min(-100).max(100).default(0),
+        blur: z.number().int().min(0).max(100).default(0),
+      })
+      .optional()
+      .describe("Optional artwork adjustments"),
+  })
+  .refine((smartObject) => smartObject.asset || smartObject.color, "Provide asset or color");
+
+const textLayerInputSchema = z
+  .object({
+    uuid: z
+      .string()
+      .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+      .describe("UUID from get_mockup_details text_layers"),
+    text: z.string().min(1).max(500).optional().describe("Replacement text for a single-style layer"),
+    segments: z
+      .array(
+        z.object({
+          index: z.number().int().min(0).max(31).describe("Zero-based segment index"),
+          text: z.string().min(1).max(200).describe("Replacement text for this segment"),
+        })
+      )
+      .min(1)
+      .max(32)
+      .optional()
+      .describe("Styled-segment replacements for a multi-style layer"),
+    font: z.string().max(255).optional().describe("Font UUID or PostScript name for a single-style layer"),
+    font_size: z.number().positive().max(2000).optional().describe("Font size in pixels at the mockup's native resolution"),
+    color: z.string().regex(/^#?[0-9a-fA-F]{6}$/).optional().describe("Text color as a six-digit hex code"),
+    stroke_color: z
+      .union([
+        z.string().regex(/^#?[0-9a-fA-F]{6}$/),
+        z.array(z.string().regex(/^#?[0-9a-fA-F]{6}$/).nullable()).min(1).max(8),
+      ])
+      .optional()
+      .describe("One outline color, or up to eight front-to-back outline colors; null keeps an original color"),
+    fit: z
+      .enum(["shrink", "clip", "overflow"])
+      .default("overflow")
+      .describe("Long-text handling for single-style point text; default overflow"),
+  })
+  .superRefine((layer, ctx) => {
+    if ((layer.text === undefined) === (layer.segments === undefined)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Provide exactly one of text or segments",
+      });
+    }
+    if (
+      layer.segments &&
+      (layer.font !== undefined ||
+        layer.font_size !== undefined ||
+        layer.color !== undefined ||
+        layer.stroke_color !== undefined)
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "font, font_size, color, and stroke_color apply to single-style layers only",
+      });
+    }
+    if (layer.segments && new Set(layer.segments.map((segment) => segment.index)).size !== layer.segments.length) {
+      ctx.addIssue({ code: "custom", message: "Segment indexes must be unique" });
+    }
+  });
+
 server.tool(
   "render_mockup",
-  "Render a mockup by placing artwork onto a PSD template's smart object. Returns the CDN URL of the rendered image. Costs 1 credit. Use list_mockups to find mockup_uuid, then get_mockup_details for smart_object_uuid.",
+  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
   {
     mockup_uuid: z.string().describe("UUID of the mockup template (from list_mockups)"),
-    smart_object_uuid: z.string().describe("UUID of the smart object layer (from get_mockup_details)"),
-    artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
-    fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How artwork fills the smart object area"),
+    smart_object_uuid: z.string().optional().describe("UUID of one smart object layer. Provide with artwork_url, or use smart_objects for one or more entries."),
+    artwork_url: z.string().optional().describe("Public artwork URL for smart_object_uuid. Provide both singular fields, or use smart_objects."),
+    smart_objects: z
+      .array(smartObjectInputSchema)
+      .min(1)
+      .optional()
+      .describe("One or more smart object overrides, each with asset or color. Do not combine with smart_object_uuid/artwork_url."),
+    text_layers: z
+      .array(textLayerInputSchema)
+      .min(1)
+      .max(50)
+      .optional()
+      .describe("Editable text overrides from get_mockup_details. Each entry needs exactly one of text or segments. May be used alone or with smart objects."),
+    fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How singular artwork_url fills its smart object area"),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (default 2048)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (default 90)"),
-    dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution 72-2400. Embeds a resolution tag into output metadata (JPEG Exif / PNG pHYs / WebP Exif). Does not change pixel size -- use image_size. jpg/png recommended for max compatibility."),
+    dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution metadata (72-2400). Does not change pixel size -- use image_size. jpg/png recommended for widest print-tool compatibility."),
     rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
     flip_horizontal: z.boolean().default(false).describe("Mirror artwork left-right"),
     flip_vertical: z.boolean().default(false).describe("Mirror artwork top-bottom"),
@@ -294,45 +422,62 @@ server.tool(
       ),
   },
   async (args) => {
-    const smartObject: Record<string, unknown> = {
-      uuid: args.smart_object_uuid,
-      asset: {
-        url: args.artwork_url,
-        fit: args.fit,
-        rotate: args.rotate,
-        flip_horizontal: args.flip_horizontal,
-        flip_vertical: args.flip_vertical,
-      },
-    };
-
-    if (args.color_hex) {
-      smartObject.color = {
-        hex: args.color_hex,
-        blending_mode: args.color_blend_mode ?? "normal",
-      };
+    const hasSmartObjectUuid = args.smart_object_uuid !== undefined;
+    const hasArtworkUrl = args.artwork_url !== undefined;
+    if (hasSmartObjectUuid !== hasArtworkUrl) {
+      throw new Error("Provide both smart_object_uuid and artwork_url, or use smart_objects.");
+    }
+    if (args.smart_objects && hasSmartObjectUuid) {
+      throw new Error("Provide smart_objects or smart_object_uuid/artwork_url, not both.");
+    }
+    if (!args.smart_objects && !hasSmartObjectUuid && !args.text_layers) {
+      throw new Error("Provide smart_objects, smart_object_uuid/artwork_url, or text_layers.");
     }
 
-    if (
-      args.brightness ||
-      args.contrast ||
-      args.opacity !== 100 ||
-      args.saturation ||
-      args.vibrance ||
-      args.blur
-    ) {
-      smartObject.adjustment_layers = {
-        brightness: args.brightness,
-        contrast: args.contrast,
-        opacity: args.opacity,
-        saturation: args.saturation,
-        vibrance: args.vibrance,
-        blur: args.blur,
+    const smartObjects: Array<Record<string, unknown>> = args.smart_objects
+      ? [...args.smart_objects]
+      : [];
+    if (hasSmartObjectUuid && hasArtworkUrl) {
+      const smartObject: Record<string, unknown> = {
+        uuid: args.smart_object_uuid,
+        asset: {
+          url: args.artwork_url,
+          fit: args.fit,
+          rotate: args.rotate,
+          flip_horizontal: args.flip_horizontal,
+          flip_vertical: args.flip_vertical,
+        },
       };
+
+      if (args.color_hex) {
+        smartObject.color = {
+          hex: args.color_hex,
+          blending_mode: args.color_blend_mode ?? "normal",
+        };
+      }
+
+      if (
+        args.brightness ||
+        args.contrast ||
+        args.opacity !== 100 ||
+        args.saturation ||
+        args.vibrance ||
+        args.blur
+      ) {
+        smartObject.adjustment_layers = {
+          brightness: args.brightness,
+          contrast: args.contrast,
+          opacity: args.opacity,
+          saturation: args.saturation,
+          vibrance: args.vibrance,
+          blur: args.blur,
+        };
+      }
+      smartObjects.push(smartObject);
     }
 
     const body: Record<string, unknown> = {
       mockup_uuid: args.mockup_uuid,
-      smart_objects: [smartObject],
       export_options: {
         image_format: args.image_format,
         image_size: args.image_size,
@@ -340,6 +485,8 @@ server.tool(
         ...(args.dpi !== undefined ? { dpi: args.dpi } : {}),
       },
     };
+    if (smartObjects.length) body.smart_objects = smartObjects;
+    if (args.text_layers) body.text_layers = args.text_layers;
 
     if (args.export_label) {
       body.export_label = args.export_label;
@@ -707,9 +854,9 @@ server.tool(
 
 server.tool(
   "get_job",
-  "Get the current status of an async job (render, video, or PSD upload) by its job_id. Returns status (queued|running|succeeded|failed), and once succeeded: result_url, mockup_uuid, model, credits_charged, and payg ({credits, unit_price, cost} for pay-as-you-go jobs, else null) -- or error if failed. Get the job_id from a render_mockup/upload_psd call with is_async=true, or from render_video. To block until done, use wait_for_job instead.",
+  "Get the current status of any async render, video, upload, or 2D job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
   {
-    job_id: z.string().describe("The job_id returned by an async submission (render_mockup is_async, upload_psd is_async, or render_video)"),
+    job_id: z.string().describe("The job_id returned by any async submission"),
   },
   async ({ job_id }) => {
     const result = await getJob(job_id);
@@ -723,9 +870,9 @@ server.tool(
 
 server.tool(
   "list_jobs",
-  "List your async jobs (renders, videos, PSD uploads), newest first. Use this to enumerate in-flight or finished jobs when you do not already hold a job_id. Keyset-paginated: pass the returned next_cursor to fetch the next page. Each job carries job_id, kind, status, model, result_url, mockup_uuid, credits_charged, and (for video) duration_seconds/audio.",
+  "List your async jobs, including PSD renders, videos, uploads, and 2D creation/renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
   {
-    kind: z.enum(["video", "render", "upload"]).optional().describe("Filter by job kind. Omit for all kinds."),
+    kind: z.enum(["video", "render", "upload", "2d_create", "2d_render"]).optional().describe("Filter by job kind. Omit for all kinds."),
     mockup_uuid: z.string().optional().describe("Filter by source mockup UUID (e.g. one mockup's videos). Raw-image videos are never returned by this filter."),
     limit: z.number().int().min(1).max(50).default(20).describe("Max jobs per page (1-50, default 20)"),
     cursor: z.string().optional().describe("Opaque keyset cursor from a prior page's next_cursor"),
@@ -746,7 +893,7 @@ server.tool(
 
 server.tool(
   "wait_for_job",
-  "Poll an async job until it reaches a terminal status (succeeded or failed), then return the final job. Blocks while polling. Use after render_mockup/upload_psd with is_async=true or after render_video. On success the result includes result_url, mockup_uuid, model, credits_charged, and payg ({credits, unit_price, cost} or null); on failure it includes error.",
+  "Poll any async render, video, upload, or 2D job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
   {
     job_id: z.string().describe("The job_id to wait on (from an async submission or render_video)"),
     poll_interval_seconds: z
@@ -793,14 +940,14 @@ server.tool(
 
 server.tool(
   "render_video",
-  "Animate a mockup into an AI video clip. TWO input modes (supply exactly one): RENDER mode (mockup_uuid + smart_object_uuid + artwork) produces a still render from the mockup (same shape as render_mockup), then animates it; RAW-IMAGE mode (image_url) animates a public image URL directly with no render step. Either way an auto-routed image-to-video model does the animation. ALWAYS async: returns 202 with a job_id immediately -- pair with get_job or wait_for_job. Credit cost is computed from model x duration x audio. duration_seconds must be one of the chosen model's allowed durations or the call fails with 400.",
+  "Create a short AI video from either a mockup with artwork or a public image URL. Supply exactly one input mode. Always async: returns a job_id immediately for get_job or wait_for_job. Credit cost depends on clip length, audio, and the selected quality option. Supported durations vary by quality option; unsupported values are rejected.",
   {
     mockup_uuid: z.string().optional().describe("RENDER MODE: UUID of the mockup to animate (from list_mockups or upload_psd). Required in render mode. In raw-image mode it is an optional association (groups the clip under that mockup's 'Past clips')."),
     smart_object_uuid: z.string().optional().describe("RENDER MODE: UUID of the smart object layer to place artwork on (from get_mockup_details). Required in render mode; omit in raw-image mode."),
     artwork_url: z.string().optional().describe("RENDER MODE: public URL of the artwork image (PNG/JPG/WebP) to place on the mockup before animating. Provide this OR artwork_base64. Omit in raw-image mode."),
-    artwork_base64: z.string().optional().describe("RENDER MODE: raw base64-encoded artwork bytes (no data: prefix). Alternative to artwork_url that skips a server-side download (faster). Provide this OR artwork_url."),
+    artwork_base64: z.string().optional().describe("RENDER MODE: raw base64-encoded artwork bytes (no data: prefix). Provide this OR artwork_url."),
     artwork_content_type: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]).optional().describe("MIME type for artwork_base64 (defaults to image/png if omitted)."),
-    image_url: z.string().optional().describe("RAW-IMAGE MODE: a public https png/jpg URL to animate directly (general image-to-video, no render step). Supply this OR (mockup_uuid + smart_object_uuid + artwork), never both."),
+    image_url: z.string().optional().describe("RAW-IMAGE MODE: a public https png/jpg URL to animate without a mockup. Supply this OR (mockup_uuid + smart_object_uuid + artwork), never both."),
     fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("RENDER MODE: how artwork fills the smart object area in the still frame"),
     asset_width: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork width in pixels (overrides fit sizing)."),
     asset_height: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork height in pixels (overrides fit sizing)."),
@@ -812,11 +959,11 @@ server.tool(
       .min(1)
       .max(15)
       .default(5)
-      .describe("Clip length in seconds chosen by you. Must be one of the auto-routed model's allowed durations (e.g. Veo [4,5,6,8], Kling [5,10]) or the call is rejected with 400 (INVALID_VIDEO_DURATION). The 1-15 bound here is a coarse guard; the per-model set is the real constraint. The credit cost scales with this value."),
+      .describe("Clip length in seconds. Available durations depend on the selected quality option; unsupported values are rejected. The 1-15 range is broad validation, not a guarantee of support. Longer clips cost more credits."),
     audio: z
       .boolean()
       .default(false)
-      .describe("Generate audio. Default off (muted clips are cheaper). Audio cost depends on the routed model: Veo bundles audio at a premium, Kling v3/2.6 charge an audio premium; Seedance and Wan add no audio cost."),
+      .describe("Generate audio. Default off; enabling it may cost more credits depending on the selected quality option."),
     motion: z
       .enum(["ambient", "showcase"])
       .default("ambient")
@@ -824,7 +971,7 @@ server.tool(
     advanced_model: z
       .string()
       .optional()
-      .describe("Escape hatch: explicit roster model id to override the auto-router (e.g. 'kling-v3-pro'). Eliminated/unknown ids are rejected. Omit to auto-route (recommended)."),
+      .describe("Optional advanced quality profile identifier. Unknown or unavailable identifiers are rejected. Omit for automatic selection (recommended)."),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format of the still input frame"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Width in pixels of the still input frame (default 2048)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for the still input frame (webp/jpg, default 90)"),
@@ -914,14 +1061,22 @@ server.tool(
 
 server.tool(
   "create_studio_session",
-  "Create an embedded studio session for interactive mockup editing in a web page. Returns a 15-minute session token (sess_...) for iframe embedding; the token auto-extends on use. Authenticated with your API key.",
+  "Create an embedded studio session for interactive PSD or 2D mockup editing in a web page. Returns session details for opening the editor. Authenticated with your API key.",
   {
-    mockup_uuid: z.string().describe("UUID of the mockup to edit"),
-    product_id: z.string().optional().describe("Optional platform product ID to associate with the session"),
+    mockup_uuid: z.string().optional().describe("UUID of an existing mockup. Optional for 2D setup and full-session flows."),
+    mockup_type: z.enum(["psd", "2d"]).default("psd").describe("Mockup type. PSD sessions support customize; 2D sessions support customize, setup, and full flows."),
+    session_kind: z
+      .enum(["customize", "2d-setup", "2d-full"])
+      .default("customize")
+      .describe("Session purpose. customize requires an existing mockup; 2d-setup and 2d-full may start without one."),
+    product_id: z.string().optional().describe("Platform product ID. Required for 2d-full sessions."),
+    allowed_origin: z.string().optional().describe("Web page origin allowed to open a 2D session. Required for 2D API-key sessions."),
   },
-  async ({ mockup_uuid, product_id }) => {
-    const body: Record<string, unknown> = { mockup_uuid };
+  async ({ mockup_uuid, mockup_type, session_kind, product_id, allowed_origin }) => {
+    const body: Record<string, unknown> = { mockup_type, session_kind };
+    if (mockup_uuid) body.mockup_uuid = mockup_uuid;
     if (product_id) body.product_id = product_id;
+    if (allowed_origin) body.allowed_origin = allowed_origin;
     const result = await apiRequest({
       method: "POST",
       path: "/api/v1/studio/create-session",
@@ -942,7 +1097,8 @@ server.tool(
 // is {event, job_id, kind, status, result_url, error, created_at}.
 //
 // Event types: render.succeeded, render.failed, upload.succeeded,
-// video.succeeded, video.failed, webhook.test.
+// video.succeeded, video.failed, 2d_mockup.ready, 2d_mockup.rejected,
+// 2d_mockup.failed, 2d_render.succeeded, 2d_render.failed, webhook.test.
 // ---------------------------------------------------------------------------
 
 const WEBHOOK_EVENT_TYPES = [
@@ -951,6 +1107,11 @@ const WEBHOOK_EVENT_TYPES = [
   "upload.succeeded",
   "video.succeeded",
   "video.failed",
+  "2d_mockup.ready",
+  "2d_mockup.rejected",
+  "2d_mockup.failed",
+  "2d_render.succeeded",
+  "2d_render.failed",
   "webhook.test",
 ] as const;
 
@@ -962,7 +1123,7 @@ server.tool(
     event_types: z
       .array(z.enum(WEBHOOK_EVENT_TYPES))
       .default([])
-      .describe("Event types to subscribe to (render.succeeded, render.failed, upload.succeeded, video.succeeded, video.failed, webhook.test). Pass an empty array (the default) to subscribe to ALL events."),
+      .describe("Event types to subscribe to. Supports render, upload, video, 2D mockup, 2D render, and webhook.test events. Pass an empty array (the default) to subscribe to ALL events."),
     description: z.string().max(255).optional().describe("Optional human-readable label for this endpoint"),
   },
   async ({ url, event_types, description }) => {
@@ -1052,7 +1213,7 @@ server.tool(
 
 server.tool(
   "test_webhook_endpoint",
-  "Send a synthetic webhook.test event through the real signed delivery path to verify your endpoint is reachable and your signature verification works. Returns the enqueued test job_id; check the result with list_webhook_deliveries.",
+  "Send a signed webhook.test event to verify endpoint reachability and signature handling. Returns a test job_id; check the result with list_webhook_deliveries.",
   {
     endpoint_id: z.string().describe("The id of the webhook endpoint to test (from list_webhook_endpoints)"),
   },
@@ -1086,7 +1247,7 @@ server.tool(
 
 server.tool(
   "replay_webhook_delivery",
-  "Re-enqueue a single webhook delivery with the SAME idempotency key (job_id:event_type), e.g. after fixing your endpoint. Get delivery_id from list_webhook_deliveries.",
+  "Replay a single webhook delivery while preserving its event identity, e.g. after fixing your endpoint. Get delivery_id from list_webhook_deliveries.",
   {
     endpoint_id: z.string().describe("The id of the webhook endpoint (from list_webhook_endpoints)"),
     delivery_id: z.string().describe("The id of the delivery to replay (from list_webhook_deliveries)"),
@@ -1117,8 +1278,8 @@ const isEntrypoint =
   import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isEntrypoint) {
-  main().catch((err) => {
-    console.error("SudoMock MCP server failed to start:", err);
+  main().catch(() => {
+    console.error("SudoMock MCP server failed to start. Check configuration and retry.");
     process.exit(1);
   });
 }
