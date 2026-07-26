@@ -523,7 +523,7 @@ server.tool(
 
 server.tool(
   "remove_background",
-  "Remove the background from any image and get a permanent transparent-PNG cutout URL with clean, production-ready edges. Use the returned URL as artwork_url in render tools -- clean once, reuse across renders. Costs 25 credits per image; credits are refunded automatically if processing fails.",
+  "Remove the background from any image and store a transparent-PNG cutout with clean, production-ready edges. The returned signed URL is valid for 7 days and can be used as artwork_url during that window. Costs 25 credits per image; credits are refunded automatically if processing fails.",
   {
     image_url: z.string().url().describe("Public URL of the image (PNG/JPG/WebP) to process"),
   },
