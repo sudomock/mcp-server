@@ -23,7 +23,7 @@ import { z } from "zod";
 const BASE_URL = "https://api.sudomock.com";
 const DEFAULT_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 120_000;
-const USER_AGENT = "SudoMock-MCP/2.2.0 (stdio)";
+const USER_AGENT = "SudoMock-MCP/2.3.0 (stdio)";
 
 function getApiKey(): string {
   const key = process.env.SUDOMOCK_API_KEY;
@@ -175,7 +175,7 @@ export function isTerminalJob(job: Record<string, unknown>): boolean {
 
 const server = new McpServer({
   name: "SudoMock",
-  version: "2.2.0",
+  version: "2.3.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -299,6 +299,10 @@ const smartObjectInputSchema = z
         rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
         flip_horizontal: z.boolean().default(false).describe("Mirror artwork left-right"),
         flip_vertical: z.boolean().default(false).describe("Mirror artwork top-bottom"),
+        remove_background: z
+          .boolean()
+          .optional()
+          .describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
       })
       .refine((asset) => asset.url || asset.base64, "Provide asset.url or asset.base64")
       .optional(),
@@ -405,6 +409,7 @@ server.tool(
     rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
     flip_horizontal: z.boolean().default(false).describe("Mirror artwork left-right"),
     flip_vertical: z.boolean().default(false).describe("Mirror artwork top-bottom"),
+    remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
     color_hex: z.string().optional().describe("Optional color overlay hex code (e.g. '#FF5733')"),
     color_blend_mode: z.string().optional().describe("Blend mode for color overlay (e.g. 'multiply', 'screen', 'overlay')"),
     brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment"),
@@ -446,6 +451,7 @@ server.tool(
           rotate: args.rotate,
           flip_horizontal: args.flip_horizontal,
           flip_vertical: args.flip_vertical,
+          ...(args.remove_background ? { remove_background: true } : {}),
         },
       };
 
@@ -507,6 +513,27 @@ server.tool(
       return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
     }
 
+    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tool: remove_background
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "remove_background",
+  "Remove the background from any image and get a permanent transparent-PNG cutout URL with clean, production-ready edges. Use the returned URL as artwork_url in render tools -- clean once, reuse across renders. Costs 25 credits per image; credits are refunded automatically if processing fails.",
+  {
+    image_url: z.string().url().describe("Public URL of the image (PNG/JPG/WebP) to process"),
+  },
+  async ({ image_url }) => {
+    const result = await apiRequest({
+      method: "POST",
+      path: "/api/v1/remove-background",
+      body: { url: image_url },
+      timeout: RENDER_TIMEOUT,
+    });
     return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
   }
 );
@@ -609,6 +636,7 @@ server.tool(
     mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
     print_area_uuid: z.string().describe("UUID of the print area to render into (from get_2d_mockup, returned as print_areas[].print_area_id)."),
     artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
+    remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
     blend_mode: z.string().default("multiply").describe("Blend mode for artwork over the product surface: 'multiply' (fabric texture, default) or 'normal' (no texture). Free-form string -- other Photoshop blend modes the API supports are accepted too."),
     opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
     brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
@@ -648,6 +676,7 @@ server.tool(
         {
           uuid: args.print_area_uuid,
           artwork_url: args.artwork_url,
+          ...(args.remove_background ? { remove_background: true } : {}),
           adjustments: {
             blend_mode: args.blend_mode,
             opacity: args.opacity,

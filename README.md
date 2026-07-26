@@ -46,6 +46,7 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `list_mockups` | List your uploaded mockup templates | 0 |
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
 | `render_mockup` | Render a mockup with artwork and/or editable text | 1 |
+| `remove_background` | Turn any image into a permanent transparent-PNG cutout URL | 25 |
 | `create_2d_mockup` | Create a 2D mockup and detect printable surfaces automatically | 25 |
 | `render_2d_mockup` | Render artwork onto a saved 2D mockup template (no PSD) | 5 |
 | `render_video` | Animate a mockup into an AI video clip (always async) | cost-based (free: 1/lifetime) |
@@ -81,6 +82,14 @@ reaches a terminal status and hands back `result_url`, `mockup_uuid`, `model`,
 `credits_charged`, and `payg` (`{credits, unit_price, cost}` for pay-as-you-go
 jobs, otherwise `null`).
 
+### Background removal
+
+`remove_background` returns a permanent transparent-PNG cutout URL you can pass
+straight back as `artwork_url` -- clean the artwork once, then reuse the cutout
+across renders. To clean artwork inline during a single render instead, pass
+`remove_background: true` to `render_mockup` or `render_2d_mockup`. Either way it
+costs 25 credits per artwork, refunded automatically if processing fails.
+
 ### Webhooks
 
 Register an endpoint with `create_webhook_endpoint` to be notified when async
@@ -98,6 +107,7 @@ time and reject if `|now - timestamp| > 300s`. The delivery body is
 - "List my mockup templates"
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"
 - "Replace the editable headline text, then render the mockup"
+- "Cut out the background from this product photo, then render it on the tote bag"
 - "List my 2D mockups, then render the first one with this artwork: https://example.com/logo.png"
 - "Render this design asynchronously and wait for it to finish"
 - "Queue that 2D mockup render async and give me the job id to track"
