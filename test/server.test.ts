@@ -38,6 +38,7 @@ const EXPECTED_TOOLS = [
   "delete_mockup",
   "create_2d_mockup",
   "render_mockup",
+  "remove_background",
   "render_2d_mockup",
   "list_2d_mockups",
   "get_2d_mockup",
@@ -162,7 +163,17 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
     ]);
 
     const publicToolCopy = JSON.stringify(tools).toLowerCase();
-    for (const forbidden of ["veo", "kling", "seedance", "server-side download", "auto-router", "cdn url"]) {
+    for (const forbidden of [
+      "veo",
+      "kling",
+      "seedance",
+      "birefnet",
+      "fal.ai",
+      "ideogram",
+      "server-side download",
+      "auto-router",
+      "cdn url",
+    ]) {
       assert.ok(!publicToolCopy.includes(forbidden), `public tool copy contains ${forbidden}`);
     }
   } finally {
@@ -259,6 +270,107 @@ test("render and Studio tools pass the new inputs without adding group_layers", 
       session_kind: "2d-setup",
       allowed_origin: "https://shop.example",
     });
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("background removal: standalone tool + opt-in flag at the right body level", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+
+  globalThis.fetch = async (input, init) => {
+    requests.push({
+      url: String(input),
+      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+    });
+    return Response.json({ success: true });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  try {
+    await client.callTool({
+      name: "remove_background",
+      arguments: { image_url: "https://example.com/photo.jpg" },
+    });
+    await client.callTool({
+      name: "render_mockup",
+      arguments: {
+        mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
+        smart_object_uuid: "223e4567-e89b-12d3-a456-426614174001",
+        artwork_url: "https://example.com/photo.jpg",
+        remove_background: true,
+      },
+    });
+    await client.callTool({
+      name: "render_mockup",
+      arguments: {
+        mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
+        smart_object_uuid: "223e4567-e89b-12d3-a456-426614174001",
+        artwork_url: "https://example.com/photo.jpg",
+      },
+    });
+    await client.callTool({
+      name: "render_2d_mockup",
+      arguments: {
+        mockup_uuid: "mockup-123",
+        print_area_uuid: "area-1",
+        artwork_url: "https://example.com/photo.jpg",
+        remove_background: true,
+      },
+    });
+    await client.callTool({
+      name: "render_2d_mockup",
+      arguments: {
+        mockup_uuid: "mockup-123",
+        print_area_uuid: "area-1",
+        artwork_url: "https://example.com/photo.jpg",
+      },
+    });
+
+    // Standalone tool posts the single image source as `url`.
+    assert.ok(requests[0].url.endsWith("/api/v1/remove-background"));
+    assert.deepEqual(requests[0].body, { url: "https://example.com/photo.jpg" });
+
+    // PSD render: the flag rides on the ASSET, not the smart object.
+    const asset = (requests[1].body.smart_objects as Array<{ asset: Record<string, unknown> }>)[0]
+      .asset;
+    assert.equal(asset.remove_background, true);
+    // Opt-in only: an omitted flag must not put the key on the wire.
+    const defaultAsset = (
+      requests[2].body.smart_objects as Array<{ asset: Record<string, unknown> }>
+    )[0].asset;
+    assert.ok(!("remove_background" in defaultAsset));
+
+    // 2D render: the flag rides on the PRINT AREA, not adjustments/placement.
+    const printArea = (
+      requests[3].body.print_areas as Array<{
+        remove_background?: boolean;
+        adjustments: Record<string, unknown>;
+        placement: Record<string, unknown>;
+      }>
+    )[0];
+    assert.equal(printArea.remove_background, true);
+    assert.ok(!("remove_background" in printArea.adjustments));
+    assert.ok(!("remove_background" in printArea.placement));
+    const defaultPrintArea = (
+      requests[4].body.print_areas as Array<Record<string, unknown>>
+    )[0];
+    assert.ok(!("remove_background" in defaultPrintArea));
+
+    // A non-URL image source fails validation before any request is sent.
+    const badUrl = await client.callTool({
+      name: "remove_background",
+      arguments: { image_url: "not-a-url" },
+    });
+    assert.equal(badUrl.isError, true);
+    assert.equal(requests.length, 5);
   } finally {
     await client.close();
     await server.close();
