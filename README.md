@@ -46,7 +46,7 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `list_mockups` | List your uploaded mockup templates | 0 |
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
 | `render_mockup` | Render a mockup with artwork and/or editable text | 1 |
-| `remove_background` | Turn any image into a permanent transparent-PNG cutout URL | 25 |
+| `remove_background` | Get a transparent-PNG cutout through a 7-day signed URL | 25 |
 | `create_2d_mockup` | Create a 2D mockup and detect printable surfaces automatically | 25 |
 | `render_2d_mockup` | Render artwork onto a saved 2D mockup template (no PSD) | 5 |
 | `render_video` | Animate a mockup into an AI video clip (always async) | cost-based (free: 1/lifetime) |
@@ -84,9 +84,9 @@ jobs, otherwise `null`).
 
 ### Background removal
 
-`remove_background` returns a permanent transparent-PNG cutout URL you can pass
-straight back as `artwork_url` -- clean the artwork once, then reuse the cutout
-across renders. To clean artwork inline during a single render instead, pass
+`remove_background` stores a transparent-PNG cutout and returns a signed URL
+valid for 7 days. You can pass that URL straight back as `artwork_url` during
+that window. To clean artwork inline during a single render instead, pass
 `remove_background: true` to `render_mockup` or `render_2d_mockup`. Either way it
 costs 25 credits per artwork, refunded automatically if processing fails.
 
