@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.0
+
+- New `remove_background` tool: turns any image into a permanent transparent-PNG
+  cutout URL, ready to reuse as `artwork_url` across renders. Costs 25 credits
+  per image; credits are refunded automatically if processing fails.
+- `render_mockup` and `render_2d_mockup` accept an optional `remove_background`
+  flag to clean the artwork inline during a render (25 credits per artwork). The
+  flag is written only when `true`, so existing calls are unchanged. On
+  `render_mockup` it can also be set per entry via `smart_objects[].asset`.
+
 ## 2.2.0
 
 - `render_mockup` accepts one or more `smart_objects` and editable `text_layers`
