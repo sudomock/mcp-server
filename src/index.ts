@@ -23,7 +23,9 @@ import { z } from "zod";
 const BASE_URL = "https://api.sudomock.com";
 const DEFAULT_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 120_000;
-const USER_AGENT = "SudoMock-MCP/2.3.0 (stdio)";
+const USER_AGENT = "SudoMock-MCP/2.4.0 (stdio)";
+const ENGINE_DETAIL =
+  /gemini|advanced.?model|\bmodel\b|prompt|mask(?:_|-|\b)|segment(?:ation)?(?:_|-|\b)|region.?index|depth|displacement|grid|warp|shading|provider|pipeline|engine|internal|private|storage|bucket|config.?version|setup.?revision|edit.?generation|\bphase\b|state.?machine|(?:internal|processing|workflow).?state/i;
 
 function getApiKey(): string {
   const key = process.env.SUDOMOCK_API_KEY;
@@ -143,7 +145,8 @@ export function formatJobAccepted(result: unknown): string {
     status_url: statusUrl,
     next_step:
       "Poll get_job with this job_id, or call wait_for_job to block until it finishes.",
-    raw: result,
+    estimated_credits: r.estimated_credits ?? null,
+    outcome_tier: r.outcome_tier ?? null,
   };
   return JSON.stringify(summary, null, 2);
 }
@@ -157,7 +160,420 @@ async function getJob(jobId: string, timeout = DEFAULT_TIMEOUT): Promise<Record<
     path: `/api/v1/jobs/${jobId}`,
     timeout,
   })) as Record<string, unknown>;
-  return result;
+  return publicJob(result);
+}
+
+function publicText(value: unknown, fallback: string | null = null): string | null {
+  if (typeof value !== "string" || !value) return fallback;
+  return ENGINE_DETAIL.test(value) ? fallback : value;
+}
+
+function publicCode(value: unknown): string | null {
+  if (typeof value !== "string" || !value) return null;
+  return ENGINE_DETAIL.test(value) ? "PROCESSING_FAILED" : value;
+}
+
+function publicWarnings(value: unknown, fallback: string): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.map((warning) => {
+        const advisory = (warning ?? {}) as Record<string, unknown>;
+        return {
+          code: publicCode(advisory.code) ?? "RENDER_WARNING",
+          message: publicText(advisory.message, fallback),
+        };
+      })
+    : [];
+}
+
+function publicJob(result: unknown): Record<string, unknown> {
+  const job = (result ?? {}) as Record<string, unknown>;
+  const nestedError =
+    job.error && typeof job.error === "object"
+      ? (job.error as Record<string, unknown>)
+      : null;
+  const failed = job.status === "failed";
+  const payg =
+    job.payg && typeof job.payg === "object"
+      ? {
+          credits: (job.payg as Record<string, unknown>).credits ?? null,
+          unit_price: (job.payg as Record<string, unknown>).unit_price ?? null,
+          cost: (job.payg as Record<string, unknown>).cost ?? null,
+        }
+      : job.payg === null
+        ? null
+        : undefined;
+  return {
+    job_id: job.job_id ?? null,
+    kind: job.kind ?? null,
+    status: job.status ?? null,
+    status_url: job.status_url ?? null,
+    result_url: job.result_url ?? null,
+    mockup_uuid: job.mockup_uuid ?? null,
+    error: failed
+      ? publicText(
+          nestedError?.message ?? job.error ?? job.message,
+          "Processing failed. Retry or contact support with the job ID.",
+        )
+      : null,
+    error_code: publicCode(nestedError?.error_code ?? job.error_code),
+    credits_charged: job.credits_charged ?? null,
+    payg,
+    created_at: job.created_at ?? null,
+    updated_at: job.updated_at ?? null,
+    estimated_credits: job.estimated_credits ?? null,
+    outcome_tier: job.outcome_tier ?? null,
+    duration_seconds: job.duration_seconds ?? null,
+    audio: job.audio ?? null,
+    mockup_name: job.mockup_name ?? null,
+    poster_url: job.poster_url ?? null,
+  };
+}
+
+function publicWebhookDelivery(result: unknown): Record<string, unknown> {
+  const delivery = (result ?? {}) as Record<string, unknown>;
+  return {
+    id: delivery.id ?? null,
+    endpoint_id: delivery.endpoint_id ?? null,
+    job_id: delivery.job_id ?? null,
+    event_type: delivery.event_type ?? null,
+    status: delivery.status ?? null,
+    http_status: delivery.http_status ?? null,
+    attempt: delivery.attempt ?? 0,
+    last_error: publicText(
+      delivery.last_error,
+      delivery.last_error
+        ? "Delivery failed. Retry it or contact support with the delivery ID."
+        : null,
+    ),
+    created_at: delivery.created_at ?? null,
+    updated_at: delivery.updated_at ?? null,
+  };
+}
+
+function publicRenderResult(result: unknown): Record<string, unknown> {
+  const envelope = (result ?? {}) as Record<string, unknown>;
+  const data =
+    envelope.data && typeof envelope.data === "object"
+      ? (envelope.data as Record<string, unknown>)
+      : envelope;
+  const warnings = publicWarnings(
+    envelope.warnings,
+    "The render completed with an advisory.",
+  );
+  return {
+    success: envelope.success !== false,
+    data: {
+      print_files: Array.isArray(data.print_files)
+        ? data.print_files.map((file) => {
+            const value = file as Record<string, unknown>;
+            return {
+              export_path: value.export_path ?? null,
+              smart_object_uuid: value.smart_object_uuid ?? null,
+              render_uuid: value.render_uuid ?? null,
+            };
+          })
+        : [],
+      render_uuid: data.render_uuid ?? null,
+    },
+    warnings,
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function publicSize(value: unknown): Record<string, unknown> {
+  const size = asRecord(value);
+  return { width: size.width ?? null, height: size.height ?? null };
+}
+
+function publicPosition(value: unknown): Record<string, unknown> {
+  const position = asRecord(value);
+  return {
+    x: position.x ?? null,
+    y: position.y ?? null,
+    width: position.width ?? null,
+    height: position.height ?? null,
+  };
+}
+
+function publicMockupData(value: unknown): Record<string, unknown> {
+  const mockup = asRecord(value);
+  return {
+    uuid: mockup.uuid ?? null,
+    name: mockup.name ?? null,
+    thumbnail: mockup.thumbnail ?? null,
+    width: mockup.width ?? null,
+    height: mockup.height ?? null,
+    smart_objects: Array.isArray(mockup.smart_objects)
+      ? mockup.smart_objects.map((item) => {
+          const smartObject = asRecord(item);
+          return {
+            uuid: smartObject.uuid ?? null,
+            name: smartObject.name ?? null,
+            size: publicSize(smartObject.size),
+            position: publicPosition(smartObject.position),
+            print_area_presets: Array.isArray(smartObject.print_area_presets)
+              ? smartObject.print_area_presets.map((rawPreset) => {
+                  const preset = asRecord(rawPreset);
+                  return {
+                    uuid: preset.uuid ?? null,
+                    name: preset.name ?? null,
+                    thumbnails: Array.isArray(preset.thumbnails)
+                      ? preset.thumbnails.map((rawThumbnail) => {
+                          const thumbnail = asRecord(rawThumbnail);
+                          return {
+                            width: thumbnail.width ?? null,
+                            url: thumbnail.url ?? null,
+                          };
+                        })
+                      : [],
+                    size: publicSize(preset.size),
+                    position: publicPosition(preset.position),
+                  };
+                })
+              : [],
+            layer_name: smartObject.layer_name ?? null,
+            quad: smartObject.quad ?? null,
+            blend_mode: smartObject.blend_mode ?? null,
+            instance_count: smartObject.instance_count ?? null,
+          };
+        })
+      : [],
+    text_layers: Array.isArray(mockup.text_layers)
+      ? mockup.text_layers.map((item) => {
+          const layer = asRecord(item);
+          return {
+            uuid: layer.uuid ?? null,
+            name: layer.name ?? null,
+            text_content: layer.text_content ?? null,
+            font_postscript_name: layer.font_postscript_name ?? null,
+            font_size: layer.font_size ?? null,
+            color: layer.color ?? null,
+            font_available: layer.font_available ?? null,
+            is_editable: layer.is_editable === true,
+            segment_count: layer.segment_count ?? 1,
+            segments: Array.isArray(layer.segments)
+              ? layer.segments.map((rawSegment) => {
+                  const segment = asRecord(rawSegment);
+                  return {
+                    index: segment.index ?? null,
+                    text: segment.text ?? null,
+                    font_postscript_name: segment.font_postscript_name ?? null,
+                    font_size: segment.font_size ?? null,
+                    color: segment.color ?? null,
+                  };
+                })
+              : layer.segments ?? null,
+            visible: layer.visible ?? null,
+            has_stroke_effect: layer.has_stroke_effect === true,
+            stroke_count: layer.stroke_count ?? 0,
+            has_color_overlay: layer.has_color_overlay === true,
+            has_clipped_artwork: layer.has_clipped_artwork ?? null,
+            suggested_edit_together: layer.suggested_edit_together ?? null,
+          };
+        })
+      : [],
+    thumbnails: Array.isArray(mockup.thumbnails)
+      ? mockup.thumbnails.map((rawThumbnail) => {
+          const thumbnail = asRecord(rawThumbnail);
+          return {
+            width: thumbnail.width ?? null,
+            url: thumbnail.url ?? null,
+          };
+        })
+      : [],
+    ...(Array.isArray(mockup.warnings)
+      ? {
+          warnings: publicWarnings(
+            mockup.warnings,
+            "The mockup completed with an advisory.",
+          ),
+        }
+      : {}),
+  };
+}
+
+function publicMockupResult(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  return {
+    success: envelope.success !== false,
+    data: publicMockupData(envelope.data ?? result),
+    ...(Array.isArray(envelope.warnings)
+      ? {
+          warnings: publicWarnings(
+            envelope.warnings,
+            "The mockup completed with an advisory.",
+          ),
+        }
+      : {}),
+  };
+}
+
+function publicMockupList(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const rawData = envelope.data;
+  const data = asRecord(rawData);
+  const mockups = Array.isArray(data.mockups)
+    ? data.mockups
+    : Array.isArray(rawData)
+      ? rawData
+      : [];
+  return {
+    success: envelope.success !== false,
+    data: {
+      mockups: mockups.map(publicMockupData),
+      total: data.total ?? envelope.total ?? mockups.length,
+      limit: data.limit ?? envelope.limit ?? mockups.length,
+      offset: data.offset ?? envelope.offset ?? 0,
+    },
+  };
+}
+
+function publicBackgroundRemoval(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const data = asRecord(envelope.data ?? result);
+  return {
+    success: envelope.success !== false,
+    data: {
+      url: data.url ?? null,
+      width: data.width ?? null,
+      height: data.height ?? null,
+      credits_charged: data.credits_charged ?? null,
+    },
+  };
+}
+
+function publicPrintArea(value: unknown): Record<string, unknown> {
+  const area = asRecord(value);
+  return {
+    print_area_id: area.print_area_id ?? null,
+    points: Array.isArray(area.points) ? area.points : [],
+    ...(area.sort_order !== undefined ? { sort_order: area.sort_order } : {}),
+    ...(area.name !== undefined ? { name: area.name } : {}),
+  };
+}
+
+function publicTwoDMockup(value: unknown): Record<string, unknown> {
+  const mockup = asRecord(value);
+  const areas = Array.isArray(mockup.print_areas)
+    ? mockup.print_areas
+    : Array.isArray(mockup.quads)
+      ? mockup.quads
+      : [];
+  return {
+    mockup_id: mockup.mockup_id ?? null,
+    name: mockup.name ?? null,
+    status: mockup.status ?? null,
+    customizable: mockup.customizable === true,
+    thumbnail_url: mockup.thumbnail_url ?? null,
+    watermarked_source_url: mockup.watermarked_source_url ?? null,
+    source_width: mockup.source_width ?? null,
+    source_height: mockup.source_height ?? null,
+    print_areas: areas.map(publicPrintArea),
+    surfaces: Array.isArray(mockup.surfaces)
+      ? mockup.surfaces.map((rawSurface) => {
+          const surface = asRecord(rawSurface);
+          return {
+            surface_uuid: surface.surface_uuid ?? null,
+            coverage: surface.coverage ?? null,
+          };
+        })
+      : [],
+    version: mockup.version ?? null,
+    created_at: mockup.created_at ?? null,
+    updated_at: mockup.updated_at ?? null,
+  };
+}
+
+function publicTwoDList(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const rows = Array.isArray(envelope.data) ? envelope.data : [];
+  return {
+    success: envelope.success !== false,
+    data: rows.map(publicTwoDMockup),
+    total: envelope.total ?? rows.length,
+    limit: envelope.limit ?? rows.length,
+    offset: envelope.offset ?? 0,
+  };
+}
+
+function publicTwoDResult(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  return {
+    success: envelope.success !== false,
+    data: publicTwoDMockup(envelope.data ?? result),
+  };
+}
+
+function publicAccount(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const data = asRecord(envelope.data ?? result);
+  const account = asRecord(data.account);
+  const subscription = asRecord(data.subscription);
+  const usage = asRecord(data.usage);
+  const apiKey = asRecord(data.api_key);
+  return {
+    success: envelope.success !== false,
+    data: {
+      account: {
+        uuid: account.uuid ?? null,
+        email: account.email ?? null,
+        name: account.name ?? null,
+        created_at: account.created_at ?? null,
+      },
+      subscription: {
+        plan: subscription.plan ?? null,
+        tier: subscription.tier ?? null,
+        status: subscription.status ?? null,
+        current_period_end: subscription.current_period_end ?? null,
+        cancel_at_period_end: subscription.cancel_at_period_end === true,
+        billing_channel: subscription.billing_channel ?? null,
+      },
+      usage: {
+        credits_used_this_month: usage.credits_used_this_month ?? null,
+        credits_limit: usage.credits_limit ?? null,
+        credits_remaining: usage.credits_remaining ?? null,
+        billing_period_start: usage.billing_period_start ?? null,
+        billing_period_end: usage.billing_period_end ?? null,
+      },
+      api_key: {
+        name: apiKey.name ?? null,
+        created_at: apiKey.created_at ?? null,
+        last_used_at: apiKey.last_used_at ?? null,
+        total_requests: apiKey.total_requests ?? null,
+      },
+    },
+  };
+}
+
+function publicWebhookEndpoint(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const endpoint = asRecord(envelope.data ?? result);
+  return {
+    id: endpoint.id ?? null,
+    url: endpoint.url ?? null,
+    secret: endpoint.secret ?? null,
+    description: endpoint.description ?? null,
+    event_types: Array.isArray(endpoint.event_types) ? endpoint.event_types : [],
+    enabled: endpoint.enabled === true,
+    created_at: endpoint.created_at ?? null,
+    updated_at: endpoint.updated_at ?? null,
+  };
+}
+
+function publicWebhookAction(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const data = asRecord(envelope.data ?? result);
+  return {
+    success: envelope.success !== false,
+    job_id: data.job_id ?? null,
+    delivery_id: data.delivery_id ?? null,
+    status: data.status ?? null,
+  };
 }
 
 /**
@@ -175,7 +591,7 @@ export function isTerminalJob(job: Record<string, unknown>): boolean {
 
 const server = new McpServer({
   name: "SudoMock",
-  version: "2.3.0",
+  version: "2.4.0",
 });
 
 // ---------------------------------------------------------------------------
@@ -200,7 +616,12 @@ server.tool(
       path: "/api/v1/mockups",
       params: { limit, offset, name, created_after, created_before, sort: sort_by, order: sort_order },
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicMockupList(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -219,7 +640,12 @@ server.tool(
       method: "GET",
       path: `/api/v1/mockups/${mockup_uuid}`,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicMockupResult(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -240,7 +666,12 @@ server.tool(
       path: `/api/v1/mockups/${mockup_uuid}`,
       body: { name },
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicMockupResult(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -513,7 +944,14 @@ server.tool(
       return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
     }
 
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(publicRenderResult(result), null, 2),
+        },
+      ],
+    };
   }
 );
 
@@ -523,7 +961,7 @@ server.tool(
 
 server.tool(
   "remove_background",
-  "Remove the background from any image and store a transparent-PNG cutout with clean, production-ready edges. The returned signed URL is valid for 7 days and can be used as artwork_url during that window. Costs 25 credits per image; credits are refunded automatically if processing fails.",
+  "Remove the background from any image and return a transparent-PNG cutout with clean, production-ready edges. The returned URL is valid for 7 days and can be used as artwork_url during that window. Costs 25 credits per image; credits are refunded automatically if processing fails.",
   {
     image_url: z.string().url().describe("Public URL of the image (PNG/JPG/WebP) to process"),
   },
@@ -534,7 +972,12 @@ server.tool(
       body: { url: image_url },
       timeout: RENDER_TIMEOUT,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicBackgroundRemoval(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -544,26 +987,11 @@ server.tool(
 
 server.tool(
   "create_2d_mockup",
-  "Create a reusable 2D mockup from an image URL or base64 data. Detects printable surfaces automatically and returns the mockup ID and print-area geometry synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
+  "Create a reusable 2D mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
   {
-    source_url: z.string().optional().describe("Public HTTPS URL of the product image. Provide exactly one of source_url or source_base64."),
-    source_base64: z.string().optional().describe("Raw base64-encoded JPEG, PNG, or WebP bytes. Provide exactly one of source_url or source_base64."),
-    source_content_type: z.enum(["image/png", "image/jpeg", "image/webp"]).optional().describe("MIME type for source_base64"),
+    source_url: z.string().describe("Public HTTPS URL of the product image"),
     name: z.string().optional().describe("Optional display name for the 2D mockup"),
-    print_areas: z
-      .array(
-        z.object({
-          points: z
-            .array(z.tuple([z.number(), z.number()]))
-            .length(4)
-            .describe("Four [x, y] points in top-left, top-right, bottom-right, bottom-left order"),
-          name: z.string().optional().describe("Optional display name for this print area"),
-        })
-      )
-      .min(1)
-      .max(8)
-      .optional()
-      .describe("Optional seed print areas (1-8 four-point quads). Omit to let printable surfaces be detected automatically."),
+    idempotency_key: z.string().min(1).max(255).optional().describe("Optional retry-stable key for this create request"),
     is_async: z
       .boolean()
       .default(false)
@@ -571,32 +999,16 @@ server.tool(
         "Queue creation instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and returns the mockup. Default false returns the mockup synchronously (201)."
       ),
   },
-  async ({ source_url, source_base64, source_content_type, name, print_areas, is_async }) => {
-    const hasUrl = Boolean(source_url?.trim());
-    const hasBase64 = Boolean(source_base64?.trim());
-    if (hasUrl === hasBase64) {
-      throw new Error("Provide exactly one of source_url or source_base64.");
-    }
-    if (source_content_type && !hasBase64) {
-      throw new Error("source_content_type requires source_base64.");
-    }
-
-    const body: Record<string, unknown> = hasUrl
-      ? { source_url: source_url!.trim() }
-      : {
-          source_base64: source_content_type
-            ? `data:${source_content_type};base64,${source_base64!.trim()}`
-            : source_base64!.trim(),
-        };
+  async ({ source_url, name, idempotency_key, is_async }) => {
+    const body: Record<string, unknown> = { source_url: source_url.trim() };
     if (name) body.name = name;
-    if (print_areas) body.print_areas = print_areas;
     if (is_async) body.is_async = true;
 
     const result = (await apiRequest({
       method: "POST",
       path: "/api/v1/sudoai/2d-mockups",
       body,
-      headers: { "Idempotency-Key": randomUUID() },
+      headers: { "Idempotency-Key": idempotency_key ?? randomUUID() },
     })) as Record<string, unknown>;
 
     // is_async=true -> 202 + job_id; hand back the poll contract.
@@ -613,13 +1025,23 @@ server.tool(
       mockup_id: details.mockup_id ?? null,
       name: details.name ?? null,
       status: details.status ?? "ready",
+      customizable: details.customizable === true,
       source_width: details.source_width ?? null,
       source_height: details.source_height ?? null,
-      print_areas: Array.isArray(details.quads)
+      print_areas: (Array.isArray(details.quads)
         ? details.quads
         : Array.isArray(details.print_areas)
           ? details.print_areas
-          : [],
+          : []).map(publicPrintArea),
+      surfaces: Array.isArray(details.surfaces)
+        ? details.surfaces.map((surface) => {
+            const value = surface as Record<string, unknown>;
+            return {
+              surface_uuid: value.surface_uuid,
+              coverage: value.coverage,
+            };
+          })
+        : [],
     };
     return { content: [{ type: "text" as const, text: JSON.stringify(summary, null, 2) }] };
   }
@@ -631,18 +1053,17 @@ server.tool(
 
 server.tool(
   "render_2d_mockup",
-  "Render artwork onto a saved 2D mockup template. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Create a template with create_2d_mockup or choose one with list_2d_mockups, then use get_2d_mockup to choose a print area. Use the dashboard for visual fine-tuning.",
+  "Render artwork onto a saved 2D mockup template. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use get_2d_mockup, then pass exactly one print_area_uuid or surface_uuid. Use the dashboard for visual fine-tuning.",
   {
     mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
-    print_area_uuid: z.string().describe("UUID of the print area to render into (from get_2d_mockup, returned as print_areas[].print_area_id)."),
+    print_area_uuid: z.string().optional().describe("UUID of a saved print area from get_2d_mockup. Omit when surface_uuid is used."),
+    surface_uuid: z.string().optional().describe("UUID of a full-coverage product surface from get_2d_mockup. Omit when print_area_uuid is used."),
     artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
     remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
-    blend_mode: z.string().default("multiply").describe("Blend mode for artwork over the product surface: 'multiply' (fabric texture, default) or 'normal' (no texture). Free-form string -- other Photoshop blend modes the API supports are accepted too."),
     opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
     brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
     contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment (-100 to 100)"),
     saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment (-100 to 100)"),
-    warp_strength: z.number().min(0).max(2).default(1.5).describe("Warp strength for fabric curvature (0.0-2.0, 0=disabled, default 1.5). Higher = artwork conforms more closely to the surface."),
     rotation: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees (-360 to 360)"),
     position: z
       .enum([
@@ -671,19 +1092,22 @@ server.tool(
       ),
   },
   async (args) => {
+    if ((args.print_area_uuid === undefined) === (args.surface_uuid === undefined)) {
+      throw new Error("Provide exactly one of print_area_uuid or surface_uuid");
+    }
     const body: Record<string, unknown> = {
       print_areas: [
         {
-          uuid: args.print_area_uuid,
+          ...(args.print_area_uuid
+            ? { uuid: args.print_area_uuid }
+            : { surface_uuid: args.surface_uuid }),
           artwork_url: args.artwork_url,
           ...(args.remove_background ? { remove_background: true } : {}),
           adjustments: {
-            blend_mode: args.blend_mode,
             opacity: args.opacity,
             brightness: args.brightness,
             contrast: args.contrast,
             saturation: args.saturation,
-            warp_strength: args.warp_strength,
           },
           placement: {
             position: args.position,
@@ -744,14 +1168,20 @@ server.tool(
   {
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
+    customizable_only: z.boolean().default(false).describe("Return only mockups ready for shopper customization"),
   },
-  async ({ limit, offset }) => {
+  async ({ limit, offset, customizable_only }) => {
     const result = await apiRequest({
       method: "GET",
       path: "/api/v1/sudoai/2d-mockups",
-      params: { limit, offset },
+      params: { limit, offset, customizable_only },
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicTwoDList(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -761,30 +1191,21 @@ server.tool(
 
 server.tool(
   "get_2d_mockup",
-  "Get one SudoAI 2D mockup's full details: status, thumbnail, source dimensions, and print_areas[] (each with print_area_id). Use a print_areas[].print_area_id as the print_area_uuid for render_2d_mockup. Costs 0 credits.",
+  "Get one SudoAI 2D mockup's full details, including saved print_areas[] and full-coverage surfaces[]. Use a print_area_id as print_area_uuid, or a surfaces[].surface_uuid as surface_uuid, for render_2d_mockup. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the 2D mockup (mockup_id from list_2d_mockups)"),
   },
   async ({ mockup_id }) => {
-    const result = (await apiRequest({
+    const result = await apiRequest({
       method: "GET",
       path: `/api/v1/sudoai/2d-mockups/${mockup_id}`,
-    })) as Record<string, unknown>;
-    const details =
-      result.data && typeof result.data === "object"
-        ? (result.data as Record<string, unknown>)
-        : result;
-    const { quads, ...rest } = details;
-    const normalized = {
-      ...rest,
-      print_areas: Array.isArray(quads)
-        ? quads
-        : Array.isArray(rest.print_areas)
-          ? rest.print_areas
-          : [],
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicTwoDResult(result), null, 2),
+      }],
     };
-    const output = details === result ? normalized : { ...result, data: normalized };
-    return { content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }] };
   }
 );
 
@@ -794,7 +1215,7 @@ server.tool(
 
 server.tool(
   "update_2d_print_areas",
-  "Replace a 2D mockup's print areas with 1 to 8 four-point quads and return the updated geometry. Costs 0 credits. Use the dashboard for visual fine-tuning.",
+  "Replace a 2D mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the 2D mockup to update"),
     print_areas: z
@@ -807,9 +1228,9 @@ server.tool(
           name: z.string().optional().describe("Optional display name for this print area"),
         })
       )
-      .min(1)
+      .min(0)
       .max(8)
-      .describe("Replacement print areas (1-8 four-point quads, each with an optional name)"),
+      .describe("Replacement print areas (0-8 four-point quads, each with an optional name)"),
   },
   async ({ mockup_id, print_areas }) => {
     const result = await apiRequest({
@@ -817,7 +1238,18 @@ server.tool(
       path: `/api/v1/sudoai/2d-mockups/${mockup_id}/print-areas`,
       body: { print_areas },
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    const envelope = asRecord(result);
+    const data = asRecord(envelope.data ?? result);
+    const output = {
+      success: envelope.success !== false,
+      data: {
+        mockup_id: data.mockup_id ?? mockup_id,
+        print_areas: Array.isArray(data.print_areas)
+          ? data.print_areas.map(publicPrintArea)
+          : [],
+      },
+    };
+    return { content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }] };
   }
 );
 
@@ -836,7 +1268,16 @@ server.tool(
       method: "DELETE",
       path: `/api/v1/sudoai/2d-mockups/${mockup_id}`,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    const envelope = asRecord(result);
+    const data = asRecord(envelope.data ?? result);
+    const output = {
+      success: envelope.success !== false,
+      data: {
+        mockup_id,
+        deleted: data.deleted !== false,
+      },
+    };
+    return { content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }] };
   }
 );
 
@@ -873,7 +1314,12 @@ server.tool(
       return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
     }
 
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicMockupResult(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -907,12 +1353,16 @@ server.tool(
     cursor: z.string().optional().describe("Opaque keyset cursor from a prior page's next_cursor"),
   },
   async ({ kind, mockup_uuid, limit, cursor }) => {
-    const result = await apiRequest({
+    const result = (await apiRequest({
       method: "GET",
       path: "/api/v1/jobs",
       params: { kind, mockup_uuid, limit, cursor },
-    });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    })) as Record<string, unknown>;
+    const output = {
+      jobs: Array.isArray(result.jobs) ? result.jobs.map(publicJob) : [],
+      next_cursor: result.next_cursor ?? null,
+    };
+    return { content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }] };
   }
 );
 
@@ -969,7 +1419,7 @@ server.tool(
 
 server.tool(
   "render_video",
-  "Create a short AI video from either a mockup with artwork or a public image URL. Supply exactly one input mode. Always async: returns a job_id immediately for get_job or wait_for_job. Credit cost depends on clip length, audio, and the selected quality option. Supported durations vary by quality option; unsupported values are rejected.",
+  "Create a short AI video from either a mockup with artwork or a public image URL. Supply exactly one input mode. Always async: returns a job_id immediately for get_job or wait_for_job. Credit cost depends on clip length, audio, and the automatically selected quality. Unsupported durations are rejected.",
   {
     mockup_uuid: z.string().optional().describe("RENDER MODE: UUID of the mockup to animate (from list_mockups or upload_psd). Required in render mode. In raw-image mode it is an optional association (groups the clip under that mockup's 'Past clips')."),
     smart_object_uuid: z.string().optional().describe("RENDER MODE: UUID of the smart object layer to place artwork on (from get_mockup_details). Required in render mode; omit in raw-image mode."),
@@ -987,20 +1437,16 @@ server.tool(
       .int()
       .min(1)
       .max(15)
-      .default(5)
-      .describe("Clip length in seconds. Available durations depend on the selected quality option; unsupported values are rejected. The 1-15 range is broad validation, not a guarantee of support. Longer clips cost more credits."),
+      .default(4)
+      .describe("Clip length in seconds. Unsupported values are rejected. Longer clips cost more credits."),
     audio: z
       .boolean()
       .default(false)
-      .describe("Generate audio. Default off; enabling it may cost more credits depending on the selected quality option."),
+      .describe("Generate audio. Default off; enabling it may cost more credits."),
     motion: z
       .enum(["ambient", "showcase"])
       .default("ambient")
       .describe("'ambient' = subtle looping hero motion that keeps the print readable; 'showcase' = one deliberate camera/product move."),
-    advanced_model: z
-      .string()
-      .optional()
-      .describe("Optional advanced quality profile identifier. Unknown or unavailable identifiers are rejected. Omit for automatic selection (recommended)."),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format of the still input frame"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Width in pixels of the still input frame (default 2048)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for the still input frame (webp/jpg, default 90)"),
@@ -1015,9 +1461,6 @@ server.tool(
       audio: args.audio,
       motion: args.motion,
     };
-    if (args.advanced_model) {
-      video.advanced_model = args.advanced_model;
-    }
 
     const body: Record<string, unknown> = {
       export_options: {
@@ -1080,38 +1523,12 @@ server.tool(
       method: "GET",
       path: "/api/v1/me",
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
-  }
-);
-
-// ---------------------------------------------------------------------------
-// Tool 9: create_studio_session
-// ---------------------------------------------------------------------------
-
-server.tool(
-  "create_studio_session",
-  "Create an embedded studio session for interactive PSD or 2D mockup editing in a web page. Returns session details for opening the editor. Authenticated with your API key.",
-  {
-    mockup_uuid: z.string().optional().describe("UUID of an existing mockup. Optional for 2D setup and full-session flows."),
-    mockup_type: z.enum(["psd", "2d"]).default("psd").describe("Mockup type. PSD sessions support customize; 2D sessions support customize, setup, and full flows."),
-    session_kind: z
-      .enum(["customize", "2d-setup", "2d-full"])
-      .default("customize")
-      .describe("Session purpose. customize requires an existing mockup; 2d-setup and 2d-full may start without one."),
-    product_id: z.string().optional().describe("Platform product ID. Required for 2d-full sessions."),
-    allowed_origin: z.string().optional().describe("Web page origin allowed to open a 2D session. Required for 2D API-key sessions."),
-  },
-  async ({ mockup_uuid, mockup_type, session_kind, product_id, allowed_origin }) => {
-    const body: Record<string, unknown> = { mockup_type, session_kind };
-    if (mockup_uuid) body.mockup_uuid = mockup_uuid;
-    if (product_id) body.product_id = product_id;
-    if (allowed_origin) body.allowed_origin = allowed_origin;
-    const result = await apiRequest({
-      method: "POST",
-      path: "/api/v1/studio/create-session",
-      body,
-    });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicAccount(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -1122,8 +1539,8 @@ server.tool(
 // Deliveries are signed with TWO headers: "X-SudoMock-Signature: <hex>" (the
 // HMAC-SHA256 over `${timestamp}.${rawBody}` with the endpoint's secret) and
 // "X-SudoMock-Timestamp: <unix-seconds>". Verify in constant time and reject if
-// |now - timestamp| > 300s (User-Agent SudoMock-Webhook/1.0). The delivery body
-// is {event, job_id, kind, status, result_url, error, created_at}.
+// |now - timestamp| > 300s (User-Agent SudoMock-Webhook/1.0). Standard job
+// events and the typed 2D create/render events have separate documented bodies.
 //
 // Event types: render.succeeded, render.failed, upload.succeeded,
 // video.succeeded, video.failed, 2d_mockup.ready, 2d_mockup.rejected,
@@ -1164,7 +1581,12 @@ server.tool(
       path: "/api/v1/webhook-endpoints",
       body,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicWebhookEndpoint(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -1177,7 +1599,8 @@ server.tool(
       method: "GET",
       path: "/api/v1/webhook-endpoints",
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    const output = Array.isArray(result) ? result.map(publicWebhookEndpoint) : [];
+    return { content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }] };
   }
 );
 
@@ -1206,7 +1629,12 @@ server.tool(
       path: `/api/v1/webhook-endpoints/${endpoint_id}`,
       body,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicWebhookEndpoint(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -1236,7 +1664,12 @@ server.tool(
       method: "POST",
       path: `/api/v1/webhook-endpoints/${endpoint_id}/rotate-secret`,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicWebhookEndpoint(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -1251,7 +1684,12 @@ server.tool(
       method: "POST",
       path: `/api/v1/webhook-endpoints/${endpoint_id}/test`,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicWebhookAction(result), null, 2),
+      }],
+    };
   }
 );
 
@@ -1270,7 +1708,10 @@ server.tool(
       path: `/api/v1/webhook-endpoints/${endpoint_id}/deliveries`,
       params: { status, event_type, limit },
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    const output = Array.isArray(result)
+      ? result.map(publicWebhookDelivery)
+      : [];
+    return { content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }] };
   }
 );
 
@@ -1286,7 +1727,12 @@ server.tool(
       method: "POST",
       path: `/api/v1/webhook-endpoints/${endpoint_id}/deliveries/${delivery_id}/replay`,
     });
-    return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicWebhookAction(result), null, 2),
+      }],
+    };
   }
 );
 

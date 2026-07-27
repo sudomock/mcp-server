@@ -48,12 +48,12 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `render_mockup` | Render a mockup with artwork and/or editable text | 1 |
 | `remove_background` | Get a transparent-PNG cutout through a 7-day signed URL | 25 |
 | `create_2d_mockup` | Create a 2D mockup and detect printable surfaces automatically | 25 |
-| `render_2d_mockup` | Render artwork onto a saved 2D mockup template (no PSD) | 5 |
+| `render_2d_mockup` | Render artwork into a saved print area or full product surface | 5 |
 | `render_video` | Animate a mockup into an AI video clip (always async) | cost-based (free: 1/lifetime) |
 | `upload_psd` | Upload a Photoshop PSD/PSB template (sync or async) | 0 |
-| `list_2d_mockups` | List your saved SudoAI 2D mockup templates | 0 |
-| `get_2d_mockup` | Get one 2D mockup's details + print-area UUIDs | 0 |
-| `update_2d_print_areas` | Update a 2D mockup's print-area geometry | 0 |
+| `list_2d_mockups` | List saved 2D templates; use `customizable_only` for shopper-ready items | 0 |
+| `get_2d_mockup` | Get one 2D mockup's saved areas and full product surfaces | 0 |
+| `update_2d_print_areas` | Replace a 2D mockup's print-area geometry | 0 |
 | `delete_2d_mockup` | Delete a 2D mockup template | 0 |
 | `get_job` | Check the status of an async job by job_id | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
@@ -61,7 +61,6 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `get_account` | Check plan, credits, and usage | 0 |
 | `update_mockup` | Rename a mockup template | 0 |
 | `delete_mockup` | Delete a mockup template | 0 |
-| `create_studio_session` | Create an embedded editor session | 0 |
 | `create_webhook_endpoint` | Register a webhook for async job completion | 0 |
 | `list_webhook_endpoints` | List your webhook endpoints | 0 |
 | `update_webhook_endpoint` | Edit or enable/disable a webhook endpoint | 0 |
@@ -78,15 +77,19 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 immediately (HTTP 202) instead of a final result. (`create_2d_mockup` and
 `render_2d_mockup` are synchronous by default and return the mockup / render
 directly.) Poll it with `get_job`, or let `wait_for_job` block until the job
-reaches a terminal status and hands back `result_url`, `mockup_uuid`, `model`,
+reaches a terminal status and hands back `result_url`, `mockup_uuid`,
 `credits_charged`, and `payg` (`{credits, unit_price, cost}` for pay-as-you-go
 jobs, otherwise `null`).
 
+For a 2D render, pass exactly one target from `get_2d_mockup`:
+`print_area_uuid` for a saved print area or `surface_uuid` for a full-coverage
+product surface.
+
 ### Background removal
 
-`remove_background` stores a transparent-PNG cutout and returns a signed URL
-valid for 7 days. You can pass that URL straight back as `artwork_url` during
-that window. To clean artwork inline during a single render instead, pass
+`remove_background` returns a transparent-PNG URL valid for 7 days. You can
+pass that URL straight back as `artwork_url` during that window. To clean
+artwork inline during a single render instead, pass
 `remove_background: true` to `render_mockup` or `render_2d_mockup`. Either way it
 costs 25 credits per artwork, refunded automatically if processing fails.
 
@@ -96,13 +99,19 @@ Register an endpoint with `create_webhook_endpoint` to be notified when async
 jobs finish. Deliveries are signed with TWO headers: `X-SudoMock-Signature`
 (a hex HMAC-SHA256 over `${timestamp}.${rawBody}` using the secret returned at
 creation/rotation) and `X-SudoMock-Timestamp` (unix seconds). Verify in constant
-time and reject if `|now - timestamp| > 300s`. The delivery body is
-`{event, job_id, kind, status, result_url, error, created_at}`. Event types:
+time and reject if `|now - timestamp| > 300s`.
+
+Render, upload, and video job deliveries use
+`{event, job_id, kind, status, result_url, error, created_at}`. The typed 2D
+creation events add `version`, `mockup_id`, `name`, and either `print_areas`
+(`ready`) or `reason` (`rejected`). The typed 2D render events carry
+`mockup_id`, `result_url`, a public `{error_code, message}` failure when
+applicable, and optional `export_format` / `duration_ms`. Event types:
 `render.succeeded`, `render.failed`, `upload.succeeded`, `video.succeeded`,
 `video.failed`, `2d_mockup.ready`, `2d_mockup.rejected`, `2d_mockup.failed`,
 `2d_render.succeeded`, `2d_render.failed`, `webhook.test`.
 
-## Example Prompts
+## Example requests
 
 - "List my mockup templates"
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"

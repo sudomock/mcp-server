@@ -1,10 +1,27 @@
 # Changelog
 
+## 2.4.0 - 2026-07-27
+
+- Removed `create_studio_session` from MCP. Session and bootstrap credentials
+  must be created server-to-server through the REST API, outside assistant output.
+- `create_2d_mockup` accepts an optional retry-stable `idempotency_key`.
+  Assistant-visible create input is limited to a public image URL and display
+  name; raw image bytes and initial area geometry remain REST-only inputs.
+- `get_2d_mockup` returns verified full product surfaces and
+  `render_2d_mockup` accepts exactly one `print_area_uuid` or `surface_uuid`.
+- `list_2d_mockups` accepts `customizable_only` and list/detail results expose
+  the canonical `customizable` eligibility flag.
+- `update_2d_print_areas` accepts an empty list; the API permits it only for
+  verified full product surfaces.
+- Job, render, delivery-log, and error results are restricted to documented
+  outcome fields and safe customer messages.
+- Video quality selection is automatic.
+
 ## 2.3.0
 
 - New `remove_background` tool: turns any image into a transparent-PNG cutout.
-  The cutout remains stored, and the returned signed URL is valid for 7 days.
-  Use it as `artwork_url` during that window. Costs 25 credits per image;
+  The returned URL is valid for 7 days. Use it as `artwork_url` during that
+  window. Costs 25 credits per image;
   credits are refunded automatically if processing fails.
 - `render_mockup` and `render_2d_mockup` accept an optional `remove_background`
   flag to clean the artwork inline during a render (25 credits per artwork). The
