@@ -1079,8 +1079,24 @@ server.tool(
       ])
       .default("center")
       .describe("Placement within the print area (default 'center')"),
-    coverage: z.number().min(10).max(100).default(70).describe("Percentage of the print area to cover (10-100, default 70)"),
+    coverage: z.number().min(10).max(100).default(70).describe("Percentage of the print area to cover (10-100, default 70). Ignored when width and height are given."),
     fit: z.enum(["contain", "fill", "cover"]).default("contain").describe("How artwork fits the print area - 'contain' (fit inside, default), 'fill' (stretch), 'cover' (fill and crop)"),
+    width: z
+      .number()
+      .min(1)
+      .max(30000)
+      .optional()
+      .describe(
+        "Artwork width in print-area pixels. Send together with height; the pair overrides coverage and fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement."
+      ),
+    height: z
+      .number()
+      .min(1)
+      .max(30000)
+      .optional()
+      .describe(
+        "Artwork height in print-area pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you."
+      ),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (100-10000, default 2048)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (1-100, default 90)"),
@@ -1114,6 +1130,12 @@ server.tool(
             coverage: args.coverage,
             fit: args.fit,
             rotation: args.rotation,
+            // Forwarded like every sibling field, half a pair included. The API
+            // owns the both-or-neither rule and answers 422; a second copy of it
+            // here could drift from the first, and dropping the half silently
+            // rendered a size the caller never asked for with no error to notice.
+            width: args.width,
+            height: args.height,
           },
         },
       ],
