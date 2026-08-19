@@ -474,13 +474,14 @@ function publicTwoDMockup(value: unknown): Record<string, unknown> {
     source_width: mockup.source_width ?? null,
     source_height: mockup.source_height ?? null,
     print_areas: areas.map(publicPrintArea),
+    // One entry per printable product in the photo. There is no field here
+    // saying what kind of surface it is: being listed is the whole statement.
+    // The fixed "coverage: full" that used to ride along named nothing the
+    // caller could act on while reading exactly like a dial they could turn.
     surfaces: Array.isArray(mockup.surfaces)
       ? mockup.surfaces.map((rawSurface) => {
           const surface = asRecord(rawSurface);
-          return {
-            surface_uuid: surface.surface_uuid ?? null,
-            coverage: surface.coverage ?? null,
-          };
+          return { surface_uuid: surface.surface_uuid ?? null };
         })
       : [],
     version: mockup.version ?? null,
@@ -507,6 +508,35 @@ function publicTwoDResult(result: unknown): Record<string, unknown> {
     success: envelope.success !== false,
     data: publicTwoDMockup(envelope.data ?? result),
   };
+}
+
+/** Read a numeric field, treating anything unusable as 0. */
+function asNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Describe how an account is funded, in words, without ever emitting a bare
+ * "0 / 0". Credits and balance are separate quantities: an allowance has a
+ * denominator and reads as a fraction, a balance does not and must never be
+ * expressed as a percentage.
+ */
+function fundingSummary(usage: Record<string, unknown>): string {
+  const limit = asNumber(usage.credits_limit);
+  const remaining = asNumber(usage.credits_remaining);
+  const balance = asNumber(usage.prepaid_balance);
+  const currency = usage.prepaid_balance_currency ?? "USD";
+
+  const parts: string[] = [];
+  if (limit > 0) {
+    parts.push(`${remaining} of ${limit} credits left`);
+  } else if (remaining > 0) {
+    parts.push(`${remaining} credits left`);
+  }
+  if (balance > 0) {
+    parts.push(`${balance.toFixed(2)} ${currency} balance`);
+  }
+  return parts.length > 0 ? parts.join(" and ") : "No credits or balance";
 }
 
 function publicAccount(result: unknown): Record<string, unknown> {
@@ -539,6 +569,17 @@ function publicAccount(result: unknown): Record<string, unknown> {
         credits_remaining: usage.credits_remaining ?? null,
         billing_period_start: usage.billing_period_start ?? null,
         billing_period_end: usage.billing_period_end ?? null,
+        // An account is funded either by a subscription allowance or by a
+        // prepaid balance. The three credits_* fields above only describe the
+        // allowance, so an account paying as it goes reports all three as 0
+        // while being perfectly able to pay. A model reading only those told
+        // the customer they were out of credits.
+        prepaid_balance: asNumber(usage.prepaid_balance),
+        prepaid_balance_currency: usage.prepaid_balance_currency ?? "USD",
+        // Stated outright rather than left to be inferred: the consumer here is
+        // a language model, and "0 credits" next to a positive balance is
+        // exactly the pair it reads wrong.
+        funding_summary: fundingSummary(usage),
       },
       api_key: {
         name: apiKey.name ?? null,
@@ -1036,10 +1077,7 @@ server.tool(
       surfaces: Array.isArray(details.surfaces)
         ? details.surfaces.map((surface) => {
             const value = surface as Record<string, unknown>;
-            return {
-              surface_uuid: value.surface_uuid,
-              coverage: value.coverage,
-            };
+            return { surface_uuid: value.surface_uuid };
           })
         : [],
     };
@@ -1048,135 +1086,355 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool 6: render_2d_mockup
+// 2D render: one tool per kind of target
 // ---------------------------------------------------------------------------
 
-server.tool(
-  "render_2d_mockup",
-  "Render artwork onto a saved 2D mockup template. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use get_2d_mockup, then pass exactly one print_area_uuid or surface_uuid. Use the dashboard for visual fine-tuning.",
+// A render names one target and nothing else. A product surface takes a
+// coverage percentage; a print area takes a fit or an explicit box. Two tools
+// rather than one, because those are two different dials and a single tool
+// could only describe in prose what the shape can state outright: whichever
+// tool the caller reaches for, every field on it applies.
+const TWO_D_SHARED = {
+  mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
+  artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
+  remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
+  opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
+  brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
+  contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment (-100 to 100)"),
+  saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment (-100 to 100)"),
+  // Anchoring. Optional rather than defaulted, and every one of them: a value
+  // the caller never typed must not reach the wire. The renderer owns what
+  // happens when an option is absent, and a default written down here is a
+  // second copy of that answer -- one that keeps sending the old one the day
+  // the renderer changes its mind. Same reason `coverage` and `fit` below are
+  // optional, and the reason `scale` is gone rather than aliased.
+  rotation: z.number().min(-360).max(360).optional().describe("Rotate artwork in degrees (-360 to 360). Omit to leave it unrotated."),
+  offset_x: z
+    .number()
+    .int()
+    .optional()
+    .describe("Pixel offset along the X axis from the anchored position. Omit to sit exactly on the anchor."),
+  offset_y: z
+    .number()
+    .int()
+    .optional()
+    .describe("Pixel offset along the Y axis from the anchored position. Omit to sit exactly on the anchor."),
+  position: z
+    .enum([
+      "center",
+      "top_left",
+      "top_center",
+      "top_right",
+      "center_left",
+      "center_right",
+      "bottom_left",
+      "bottom_center",
+      "bottom_right",
+    ])
+    .optional()
+    .describe("Where the artwork sits within its target. Omit to accept the renderer's anchor, which is the center."),
+  image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
+  image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (100-10000, default 2048)"),
+  quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (1-100, default 90)"),
+  is_async: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel."
+    ),
+};
+
+type TwoDSharedArgs = {
+  mockup_uuid: string;
+  artwork_url: string;
+  remove_background: boolean;
+  opacity: number;
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  rotation?: number;
+  offset_x?: number;
+  offset_y?: number;
+  position?: string;
+  image_format: string;
+  image_size: number;
+  quality: number;
+  is_async: boolean;
+};
+
+// The option a caller can write on one of these two tools but not the other,
+// and the sentence that sends them to the one that works.
+//
+// An argument a tool never declared is dropped before the handler ever sees it,
+// so `coverage` on a print area, `fit` on a surface, and the retired `scale` on
+// either used to come back as a successful render with the caller's option
+// gone and nothing said about it. The API answers all three with a 422. The
+// consumer on this side is a language model: an option it wrote disappearing in
+// silence teaches it nothing and it writes the same option again, while one
+// named sentence teaches it in a single turn.
+//
+// The wording is the API's own, so the caller reads the same reason whichever
+// side answers first.
+const RETIRED_SCALE =
+  "scale has been retired and nothing replaces the name. Send width and height together to draw the artwork at an exact size; a single multiplier could not express two independent axes.";
+
+const TWO_D_REFUSED_OPTIONS: Record<"surface" | "print_area", Record<string, string>> = {
+  surface: {
+    fit: "A surface covers the whole product, so fit has nothing to fit against. Send coverage to choose how much of the surface the artwork spans, or width and height to give it an exact size, or render a print area instead.",
+    scale: RETIRED_SCALE,
+  },
+  print_area: {
+    coverage: "A print area is sized by fit, or by an explicit width and height, so coverage has no meaning on one. Send fit or a width and height, or render the product surface instead.",
+    scale: RETIRED_SCALE,
+  },
+};
+
+/**
+ * Build the arguments one 2D render tool accepts, and refuse the rest by name.
+ *
+ * Strict on purpose, and only on these two tools: the pair exists precisely
+ * because the sizing options are split between them, so an option landing on
+ * the wrong one of the two is the mistake most worth catching. Refusing is
+ * keyed on the argument being written rather than on the value it holds, so an
+ * explicitly written null is caught as well: writing it is the caller naming
+ * the option.
+ *
+ * An option with no sentence of its own still gets refused rather than dropped.
+ * A name we never published is either a typo or an option the caller believes
+ * exists, and both are worth one line of reply.
+ */
+function twoDRenderInput<Shape extends z.ZodRawShape>(kind: "surface" | "print_area", shape: Shape) {
+  const refused = TWO_D_REFUSED_OPTIONS[kind];
+  return z.strictObject(shape, {
+    error: (issue) => {
+      if (issue.code !== "unrecognized_keys") return undefined;
+      return issue.keys
+        .map(
+          (key) =>
+            refused[key] ??
+            `${key} is not an option on this tool. Send only the options it lists, and read them from the tool's own arguments rather than from another tool's.`
+        )
+        .join(" ");
+    },
+  });
+}
+
+/**
+ * Refuse a placement that answers the sizing question more than once, or half.
+ *
+ * The API refuses these too, and refusing them here as well is deliberate. A
+ * client that can put a shape on the wire the API is guaranteed to reject has
+ * spent the caller's round trip telling them something it already knew.
+ *
+ * This is not the thing that was taken out of here. A default invents a value
+ * the caller never typed and quietly changes the render when it drifts from
+ * the renderer's; a refusal invents nothing, and if it ever drifts it drifts
+ * into refusing out loud, with the API still refusing behind it. It also
+ * cannot drift unnoticed: the contract test reads the shared placement wire
+ * fixture and asserts every shape listed there as rejected is still
+ * unreachable from every tool, and the wording below is the wording the API
+ * answers with, so a caller reads the same reason from either side.
+ *
+ * `relativeSizing` is whichever proportional option belongs to this kind of
+ * target -- `coverage` on a surface, `fit` on a print area.
+ */
+function assertOneSizingAnswer(
+  placement: Record<string, unknown>,
+  relativeSizing: "coverage" | "fit"
+): void {
+  const hasWidth = "width" in placement;
+  const hasHeight = "height" in placement;
+
+  if (hasWidth !== hasHeight) {
+    throw new Error(
+      "width and height must be provided together. Send both to draw the artwork at an exact size, or neither. Half a size is not a size, and guessing the other axis would apply an aspect rule you never asked for."
+    );
+  }
+
+  if (hasWidth && relativeSizing in placement) {
+    throw new Error(
+      `${relativeSizing} and an explicit width and height are two different ways to size the same artwork. Send one of them, not both.`
+    );
+  }
+}
+
+/**
+ * Send one render and hand back what the caller can act on.
+ *
+ * `target` carries the address field, `placement` the dials that belong to that
+ * kind of target. Neither is inspected here: the dials a caller may turn are
+ * settled by which tool they called, so there is nothing left to check.
+ */
+async function renderTwoD(
+  args: TwoDSharedArgs,
+  target: Record<string, unknown>,
+  placement: Record<string, unknown>
+) {
+  // Anchoring belongs to both kinds of target; only sizing is split, and the
+  // caller's tool already settled which sizing options exist. What the caller
+  // did not name is absent, and a placement nobody touched is absent entirely
+  // rather than sent as an empty object -- an empty object still claims the
+  // caller reached for placement.
+  const sent: Record<string, unknown> = {
+    ...(args.position === undefined ? {} : { position: args.position }),
+    ...(args.offset_x === undefined ? {} : { offset_x: args.offset_x }),
+    ...(args.offset_y === undefined ? {} : { offset_y: args.offset_y }),
+    ...(args.rotation === undefined ? {} : { rotation: args.rotation }),
+    ...placement,
+  };
+
+  const body: Record<string, unknown> = {
+    print_areas: [
+      {
+        ...target,
+        artwork_url: args.artwork_url,
+        ...(args.remove_background ? { remove_background: true } : {}),
+        adjustments: {
+          opacity: args.opacity,
+          brightness: args.brightness,
+          contrast: args.contrast,
+          saturation: args.saturation,
+        },
+        ...(Object.keys(sent).length > 0 ? { placement: sent } : {}),
+      },
+    ],
+    export_options: {
+      image_format: args.image_format,
+      image_size: args.image_size,
+      quality: args.quality,
+    },
+  };
+
+  if (args.is_async) body.is_async = true;
+
+  const result = await apiRequest({
+    method: "POST",
+    path: `/api/v1/sudoai/2d-mockups/${args.mockup_uuid}/render`,
+    body,
+    timeout: RENDER_TIMEOUT,
+  });
+
+  // is_async=true -> 202 + job_id (kind "2d_render"); hand back the poll contract.
+  // Reuse get_job / wait_for_job to reach the terminal job (result_url).
+  if (args.is_async) {
+    return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
+  }
+
+  // Default sync -> 200 {data, success}.
+  // Whitelist the render output to WHAT-only fields; never surface pipeline internals.
+  const renderData =
+    (result as { data?: { render_uuid?: string; print_files?: Array<Record<string, unknown>> } })?.data ?? {};
+  const rendered = {
+    data: {
+      render_uuid: renderData.render_uuid,
+      print_files: (renderData.print_files ?? []).map((f) => ({
+        export_path: f.export_path,
+        export_format: f.export_format,
+        duration_ms: f.duration_ms,
+      })),
+    },
+    success: true,
+  };
+  return { content: [{ type: "text" as const, text: JSON.stringify(rendered, null, 2) }] };
+}
+
+// ---------------------------------------------------------------------------
+// Tool: render_2d_surface
+// ---------------------------------------------------------------------------
+
+server.registerTool(
+  "render_2d_surface",
   {
-    mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
-    print_area_uuid: z.string().optional().describe("UUID of a saved print area from get_2d_mockup. Omit when surface_uuid is used."),
-    surface_uuid: z.string().optional().describe("UUID of a full-coverage product surface from get_2d_mockup. Omit when print_area_uuid is used."),
-    artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
-    remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
-    opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
-    brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
-    contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment (-100 to 100)"),
-    saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment (-100 to 100)"),
-    rotation: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees (-360 to 360)"),
-    position: z
-      .enum([
-        "center",
-        "top_left",
-        "top_center",
-        "top_right",
-        "center_left",
-        "center_right",
-        "bottom_left",
-        "bottom_center",
-        "bottom_right",
-      ])
-      .default("center")
-      .describe("Placement within the print area (default 'center')"),
-    coverage: z.number().min(10).max(100).default(70).describe("Percentage of the print area to cover (10-100, default 70). Ignored when width and height are given."),
-    fit: z.enum(["contain", "fill", "cover"]).default("contain").describe("How artwork fits the print area - 'contain' (fit inside, default), 'fill' (stretch), 'cover' (fill and crop)"),
-    width: z
-      .number()
-      .min(1)
-      .max(30000)
-      .optional()
-      .describe(
-        "Artwork width in print-area pixels. Send together with height; the pair overrides coverage and fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement."
-      ),
-    height: z
-      .number()
-      .min(1)
-      .max(30000)
-      .optional()
-      .describe(
-        "Artwork height in print-area pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you."
-      ),
-    image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
-    image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (100-10000, default 2048)"),
-    quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (1-100, default 90)"),
-    is_async: z
-      .boolean()
-      .default(false)
-      .describe(
-        "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel."
-      ),
+    description: "Render artwork across a whole product surface -- an all-over print. Every printable product in the photo is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+    inputSchema: twoDRenderInput("surface", {
+      ...TWO_D_SHARED,
+      surface_uuid: z.string().describe("UUID of a product surface from get_2d_mockup's surfaces[]."),
+      coverage: z
+        .number()
+        .min(10)
+        .max(100)
+        .optional()
+        .describe(
+          "How much of the surface the artwork spans, as a percentage (10-100). Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size."
+        ),
+      // A percentage cannot express a box whose proportions differ from the
+      // surface's, which is exactly what an artwork resized on a canvas is.
+      width: z
+        .number()
+        .min(1)
+        .max(30000)
+        .optional()
+        .describe(
+          "Artwork width in pixels, drawn at that exact size rather than as a percentage of the surface. Send together with height, and without coverage."
+        ),
+      height: z
+        .number()
+        .min(1)
+        .max(30000)
+        .optional()
+        .describe(
+          "Artwork height in pixels. Send together with width, and without coverage. The two axes are independent, so any aspect ratio is allowed."
+        ),
+    }),
   },
   async (args) => {
-    if ((args.print_area_uuid === undefined) === (args.surface_uuid === undefined)) {
-      throw new Error("Provide exactly one of print_area_uuid or surface_uuid");
-    }
-    const body: Record<string, unknown> = {
-      print_areas: [
-        {
-          ...(args.print_area_uuid
-            ? { uuid: args.print_area_uuid }
-            : { surface_uuid: args.surface_uuid }),
-          artwork_url: args.artwork_url,
-          ...(args.remove_background ? { remove_background: true } : {}),
-          adjustments: {
-            opacity: args.opacity,
-            brightness: args.brightness,
-            contrast: args.contrast,
-            saturation: args.saturation,
-          },
-          placement: {
-            position: args.position,
-            coverage: args.coverage,
-            fit: args.fit,
-            rotation: args.rotation,
-            // Forwarded like every sibling field, half a pair included. The API
-            // owns the both-or-neither rule and answers 422; a second copy of it
-            // here could drift from the first, and dropping the half silently
-            // rendered a size the caller never asked for with no error to notice.
-            width: args.width,
-            height: args.height,
-          },
-        },
-      ],
-      export_options: {
-        image_format: args.image_format,
-        image_size: args.image_size,
-        quality: args.quality,
-      },
+    const sizing = {
+      ...(args.coverage === undefined ? {} : { coverage: args.coverage }),
+      ...(args.width === undefined ? {} : { width: args.width }),
+      ...(args.height === undefined ? {} : { height: args.height }),
     };
+    assertOneSizingAnswer(sizing, "coverage");
+    return renderTwoD(args, { surface_uuid: args.surface_uuid }, sizing);
+  }
+);
 
-    if (args.is_async) body.is_async = true;
+// ---------------------------------------------------------------------------
+// Tool: render_2d_print_area
+// ---------------------------------------------------------------------------
 
-    const result = await apiRequest({
-      method: "POST",
-      path: `/api/v1/sudoai/2d-mockups/${args.mockup_uuid}/render`,
-      body,
-      timeout: RENDER_TIMEOUT,
-    });
-
-    // is_async=true -> 202 + job_id (kind "2d_render"); hand back the poll contract.
-    // Reuse get_job / wait_for_job to reach the terminal job (result_url).
-    if (args.is_async) {
-      return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
-    }
-
-    // Default sync -> 200 {data, success}.
-    // Whitelist the render output to WHAT-only fields; never surface pipeline internals.
-    const renderData =
-      (result as { data?: { render_uuid?: string; print_files?: Array<Record<string, unknown>> } })?.data ?? {};
-    const rendered = {
-      data: {
-        render_uuid: renderData.render_uuid,
-        print_files: (renderData.print_files ?? []).map((f) => ({
-          export_path: f.export_path,
-          export_format: f.export_format,
-          duration_ms: f.duration_ms,
-        })),
-      },
-      success: true,
+server.registerTool(
+  "render_2d_print_area",
+  {
+    description: "Render artwork onto one saved print area -- a bounded zone somebody drew on the product, such as a chest logo. Read the print_area_id values from get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+    inputSchema: twoDRenderInput("print_area", {
+      ...TWO_D_SHARED,
+      print_area_uuid: z.string().describe("UUID of a saved print area from get_2d_mockup's print_areas[] (its print_area_id)."),
+      fit: z
+        .enum(["contain", "fill", "cover"])
+        .optional()
+        .describe(
+          "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead."
+        ),
+      width: z
+        .number()
+        .min(1)
+        .max(30000)
+        .optional()
+        .describe(
+          "Artwork width in print-area pixels. Send together with height, and without fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement."
+        ),
+      height: z
+        .number()
+        .min(1)
+        .max(30000)
+        .optional()
+        .describe(
+          "Artwork height in print-area pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you."
+        ),
+    }),
+  },
+  async (args) => {
+    const sizing = {
+      ...(args.fit === undefined ? {} : { fit: args.fit }),
+      ...(args.width === undefined ? {} : { width: args.width }),
+      ...(args.height === undefined ? {} : { height: args.height }),
     };
-    return { content: [{ type: "text" as const, text: JSON.stringify(rendered, null, 2) }] };
+    // Half a pair, or two answers at once, never reaches the wire. Dropping
+    // the half instead would render a size the caller never asked for with no
+    // error to notice, and forwarding it spends a round trip to be told what
+    // the shape already said.
+    assertOneSizingAnswer(sizing, "fit");
+    return renderTwoD(args, { uuid: args.print_area_uuid }, sizing);
   }
 );
 
@@ -1186,7 +1444,7 @@ server.tool(
 
 server.tool(
   "list_2d_mockups",
-  "List your saved SudoAI 2D mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup (to read print_area UUIDs) or render_2d_mockup. Costs 0 credits.",
+  "List your saved SudoAI 2D mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits.",
   {
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
@@ -1213,7 +1471,7 @@ server.tool(
 
 server.tool(
   "get_2d_mockup",
-  "Get one SudoAI 2D mockup's full details, including saved print_areas[] and full-coverage surfaces[]. Use a print_area_id as print_area_uuid, or a surfaces[].surface_uuid as surface_uuid, for render_2d_mockup. Costs 0 credits.",
+  "Get one SudoAI 2D mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the 2D mockup (mockup_id from list_2d_mockups)"),
   },
@@ -1538,7 +1796,7 @@ server.tool(
 
 server.tool(
   "get_account",
-  "Get your account info: subscription plan, credit balance, usage stats, billing period, and API key details.",
+  "Get your account info: subscription plan, remaining credits, prepaid balance, usage stats, billing period, and API key details. An account is funded by a subscription allowance or by a prepaid balance, so read both: an account paying as it goes reports 0 credits and pays from its balance. Quote funding_summary rather than reading the credits fields alone.",
   {},
   async () => {
     const result = await apiRequest({

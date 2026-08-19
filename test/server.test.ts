@@ -39,7 +39,8 @@ const EXPECTED_TOOLS = [
   "create_2d_mockup",
   "render_mockup",
   "remove_background",
-  "render_2d_mockup",
+  "render_2d_surface",
+  "render_2d_print_area",
   "list_2d_mockups",
   "get_2d_mockup",
   "update_2d_print_areas",
@@ -163,8 +164,43 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
       "2d_create",
       "2d_render",
     ]);
-    const render2d = schema("render_2d_mockup");
-    assert.ok(!("blend_mode" in (render2d.properties ?? {})));
+    for (const name of ["render_2d_surface", "render_2d_print_area"]) {
+      assert.ok(!("blend_mode" in (schema(name).properties ?? {})));
+    }
+    // The RELATIVE dials do not cross, and only those. A surface is sized
+    // relative to itself by a percentage, a print area relative to its bounds
+    // by a fit, and neither reads on the other -- which is the whole reason
+    // there are two tools.
+    //
+    // An exact box in pixels is not relative to anything, so it belongs to
+    // both. It used to be listed here as print-area-only; the shared placement
+    // wire fixture accepts `surface_explicit_box` and says why: a percentage
+    // cannot express a box whose proportions differ from the surface, and
+    // refusing it made every all-over print somebody had resized on a canvas
+    // unsendable. See test/placement-wire.test.ts, which reads that fixture.
+    const surfaceProps = schema("render_2d_surface").properties ?? {};
+    const areaProps = schema("render_2d_print_area").properties ?? {};
+    assert.ok("coverage" in surfaceProps);
+    for (const absent of ["fit", "print_area_uuid"]) {
+      assert.ok(!(absent in surfaceProps), `render_2d_surface offers ${absent}`);
+    }
+    for (const present of ["fit", "width", "height"]) {
+      assert.ok(present in areaProps, `render_2d_print_area is missing ${present}`);
+    }
+    for (const present of ["width", "height"]) {
+      assert.ok(present in surfaceProps, `render_2d_surface is missing ${present}`);
+    }
+    for (const absent of ["coverage", "surface_uuid"]) {
+      assert.ok(!(absent in areaProps), `render_2d_print_area offers ${absent}`);
+    }
+    // Anchoring is shared and, like sizing, carries no client-side default:
+    // an option the caller never names must not reach the wire.
+    for (const props of [surfaceProps, areaProps]) {
+      for (const anchor of ["position", "offset_x", "offset_y", "rotation"]) {
+        assert.ok(anchor in props, `a render tool is missing ${anchor}`);
+        assert.equal(props[anchor].default, undefined, `${anchor} carries a client-side default`);
+      }
+    }
     const video = schema("render_video");
     assert.ok(!("advanced_model" in (video.properties ?? {})));
 
@@ -512,7 +548,7 @@ test("background removal: standalone tool + opt-in flag at the right body level"
       },
     });
     await client.callTool({
-      name: "render_2d_mockup",
+      name: "render_2d_print_area",
       arguments: {
         mockup_uuid: "mockup-123",
         print_area_uuid: "area-1",
@@ -521,7 +557,7 @@ test("background removal: standalone tool + opt-in flag at the right body level"
       },
     });
     await client.callTool({
-      name: "render_2d_mockup",
+      name: "render_2d_print_area",
       arguments: {
         mockup_uuid: "mockup-123",
         print_area_uuid: "area-1",
@@ -548,12 +584,14 @@ test("background removal: standalone tool + opt-in flag at the right body level"
       requests[3].body.print_areas as Array<{
         remove_background?: boolean;
         adjustments: Record<string, unknown>;
-        placement: Record<string, unknown>;
+        placement?: Record<string, unknown>;
       }>
     )[0];
     assert.equal(printArea.remove_background, true);
     assert.ok(!("remove_background" in printArea.adjustments));
-    assert.ok(!("remove_background" in printArea.placement));
+    // This caller named no placement option at all, so there is no placement
+    // on the wire to hide the flag in -- which is itself the stronger check.
+    assert.equal(printArea.placement, undefined);
     const defaultPrintArea = (
       requests[4].body.print_areas as Array<Record<string, unknown>>
     )[0];
@@ -647,7 +685,11 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
           source_width: 1200,
           source_height: 900,
           quads: [{ print_area_id: "area-1", points: quad }],
-          surfaces: [{ surface_uuid: "surface-1", coverage: "full" }],
+          // The stub above still sends the retired `coverage: "full"`, the way a
+          // server one deploy behind would during a rollout. It does not reach
+          // the caller: this reply is a whitelist, so a field we stopped
+          // publishing cannot come back through a stale upstream.
+          surfaces: [{ surface_uuid: "surface-1" }],
         },
         success: true,
       });
@@ -738,10 +780,10 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.equal(created.customizable, true);
     assert.equal(created.source_width, 1200);
     assert.deepEqual(created.print_areas, [{ print_area_id: "area-1", points: quad }]);
-    assert.deepEqual(created.surfaces, [{
-      surface_uuid: "surface-1",
-      coverage: "full",
-    }]);
+    // A surface is named and nothing else. The retired `coverage: "full"` that
+    // rode along stated nothing a caller could act on while reading exactly
+    // like a dial they could turn.
+    assert.deepEqual(created.surfaces, [{ surface_uuid: "surface-1" }]);
 
     const detailsResult = await client.callTool({
       name: "get_2d_mockup",
@@ -751,10 +793,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       (detailsResult.content as Array<{ type: "text"; text: string }>)[0].text
     );
     assert.deepEqual(details.data.print_areas, [{ print_area_id: "area-1", points: quad }]);
-    assert.deepEqual(details.data.surfaces, [{
-      surface_uuid: "surface-1",
-      coverage: "full",
-    }]);
+    assert.deepEqual(details.data.surfaces, [{ surface_uuid: "surface-1" }]);
     assert.ok(!("quads" in details.data));
 
     const listResult = await client.callTool({
@@ -800,7 +839,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
 
     // render posts to the plural path with the id in the path + print_files/render_uuid back.
     const renderResult = await client.callTool({
-      name: "render_2d_mockup",
+      name: "render_2d_print_area",
       arguments: {
         mockup_uuid: "mockup-123",
         print_area_uuid: "area-1",
@@ -814,7 +853,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.equal(rendered.data.print_files[0].export_path, "/renders/out.webp");
 
     await client.callTool({
-      name: "render_2d_mockup",
+      name: "render_2d_surface",
       arguments: {
         mockup_uuid: "mockup-123",
         surface_uuid: "surface-1",
@@ -828,26 +867,27 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.ok(
       !("uuid" in (renderBodies.at(-1)?.print_areas as Array<Record<string, unknown>>)[0])
     );
+    // Naming two targets at once is no longer something a caller can express:
+    // there is no tool that takes both fields. What is still refusable is
+    // naming none, and each tool refuses that on its own behalf.
     assert.equal((await client.callTool({
-      name: "render_2d_mockup",
+      name: "render_2d_print_area",
       arguments: {
         mockup_uuid: "mockup-123",
         artwork_url: "https://example.com/art.png",
       },
     })).isError, true);
     assert.equal((await client.callTool({
-      name: "render_2d_mockup",
+      name: "render_2d_surface",
       arguments: {
         mockup_uuid: "mockup-123",
-        print_area_uuid: "area-1",
-        surface_uuid: "surface-1",
         artwork_url: "https://example.com/art.png",
       },
     })).isError, true);
 
     // render is_async=true returns the job-accepted contract (mirrors create).
     const asyncRenderResult = await client.callTool({
-      name: "render_2d_mockup",
+      name: "render_2d_print_area",
       arguments: {
         mockup_uuid: "mockup-123",
         print_area_uuid: "area-1",
