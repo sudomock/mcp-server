@@ -1,5 +1,54 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- `get_account` now reports `prepaid_balance` and `prepaid_balance_currency`,
+  the money an account holds and spends per render. An account funded this way
+  carries no subscription allowance, so its `credits_*` fields are legitimately
+  `0` and a model reading only those told the customer they were out of credits.
+- `usage.funding_summary`, a plain-language line covering both funding routes.
+  The consumer here is a language model, and `0` credits beside a positive
+  balance is exactly the pair it reads wrong, so the answer is stated rather
+  than left to be inferred.
+- The `get_account` tool description now tells the model to read both routes and
+  to quote `funding_summary` instead of the credits fields alone.
+- `render_2d_surface` prints artwork across a whole product surface and takes a
+  `coverage` percentage (10-100, whole surface when omitted), or an explicit
+  `width` + `height` instead. A percentage cannot express a box whose
+  proportions differ from the surface, which is what an artwork resized on a
+  canvas is; without the box every such all-over print was unsendable. Every
+  printable product in a photo is a surface with its own `surface_uuid`.
+- `render_2d_print_area` prints into one saved print area -- a bounded zone
+  somebody drew, such as a chest logo -- and takes either a `fit` or an explicit
+  `width` + `height`.
+
+### Changed (BREAKING)
+- `render_2d_mockup` is replaced by the two tools above. It offered `coverage`
+  and `fit` on the same call and sent both on every render, which the API now
+  answers with a 422: a percentage belongs to a surface and a fit belongs to a
+  print area, and neither tool can be handed the other's. A product can have
+  both a surface and print areas, and they are separate targets -- a saved
+  print area no longer closes off the surface it sits on.
+- No placement option is defaulted client-side any more. `coverage` and `fit`
+  were already optional; `position` and `rotation` were not, and shipped
+  `"center"` and `0` on every single render whether or not the caller had ever
+  mentioned them. What the caller does not name does not travel, and a render
+  that names no placement at all now sends no `placement` at all, so the
+  renderer's default applies instead of a second copy of it kept here.
+- `offset_x` and `offset_y` are accepted on both render tools. They anchor the
+  artwork on either kind of target and were the one part of the placement
+  contract these tools could not express.
+- Sizing is answered once, or refused here rather than at the API. `width` and
+  `height` must be sent together, and cannot be combined with `coverage` or
+  `fit`. The wording matches the API's, so the reason reads the same whichever
+  side answers.
+
+### Removed (BREAKING)
+- `surfaces[].coverage`. It was always the string `"full"`, so it stated nothing
+  a caller could act on while reading exactly like a dial they could turn.
+  Membership in `surfaces[]` is the whole statement.
+
 ## [2.5.0] - 2026-08-04
 
 ### Changed (BREAKING)
