@@ -20,7 +20,21 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run build
-      - run: npm publish --provenance --access public
+      - name: Publish to npm (skip if this version is already there)
+        # Iki yayin hedefi (npm + MCP Registry) tek iste kosuyor ve daha once
+        # idempotent degildi: npm basarili olup registry duserse, yeniden kosmak
+        # IMKANSIZ hale geliyordu -- npm "cannot publish over" diyip akisi
+        # registry adimina hic vardirmiyordu. 4 Agustos ve 21 Agustos kosulari
+        # tam olarak boyle sessizce yarim kaldi. Surum zaten yayindaysa atla,
+        # boylece diger yarim tamamlanabilsin.
+        run: |
+          V=$(node -p "require('./package.json').version")
+          N=$(node -p "require('./package.json').name")
+          if npm view "$N@$V" version >/dev/null 2>&1; then
+            echo "npm: $N@$V zaten yayinda, atlaniyor"
+          else
+            npm publish --provenance --access public
+          fi
       - name: Sync server.json version from package.json
         # server.json'un kendi `version` alani ikinci bir kopyaydi: 2.5.0
         # sevkinde kimse yukseltmedi, MCP registry "cannot publish duplicate
@@ -43,4 +57,13 @@ jobs:
       - name: Publish to MCP Registry
         run: |
           ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
+          # Ayni gerekce: surum registry'de zaten varsa bu bir hata degil,
+          # tamamlanmis bir istir. "duplicate version" cikisi basari sayilir.
+          if ./mcp-publisher publish 2>&1 | tee /tmp/mcp-publish.log; then
+            echo "MCP Registry: yayinlandi"
+          elif grep -q "duplicate version" /tmp/mcp-publish.log; then
+            echo "MCP Registry: bu surum zaten kayitli, atlaniyor"
+          else
+            cat /tmp/mcp-publish.log
+            exit 1
+          fi
