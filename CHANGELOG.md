@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.6.0] - 2026-08-21
 
 ### Added
 - `get_account` now reports `prepaid_balance` and `prepaid_balance_currency`,
