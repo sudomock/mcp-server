@@ -21,6 +21,23 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm publish --provenance --access public
+      - name: Sync server.json version from package.json
+        # server.json'un kendi `version` alani ikinci bir kopyaydi: 2.5.0
+        # sevkinde kimse yukseltmedi, MCP registry "cannot publish duplicate
+        # version" ile reddetti ve kayit 2.4.0'da kaldi -- npm yayinlanirken
+        # registry sessizce geride kaliyordu. Surum artik TEK yerden turetiliyor.
+        run: |
+          node -e "
+            const fs = require('fs');
+            const v = require('./package.json').version;
+            const s = JSON.parse(fs.readFileSync('server.json', 'utf8'));
+            s.version = v;
+            for (const p of s.packages ?? []) {
+              if (p.identifier === '@sudomock/mcp') p.version = v;
+            }
+            fs.writeFileSync('server.json', JSON.stringify(s, null, 2) + '\n');
+            console.log('server.json version ->', v);
+          "
       - name: Install mcp-publisher
         run: curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
       - name: Publish to MCP Registry
