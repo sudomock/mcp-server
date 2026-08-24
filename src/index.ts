@@ -2017,6 +2017,129 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
+// Local file upload
+//
+// Every other tool takes a URL, because MCP has no way to carry file bytes: the
+// three attempts to add one never landed, `roots` only carries paths and is
+// deprecated, and elicitation results are scalars. Running on the user's own
+// machine is what lets this server close the gap. It reads the file itself and
+// PUTs it to a signed URL, so the signed URL is never returned to the model and
+// never enters the transcript -- the one thing the hosted equivalent cannot do.
+//
+// The model chooses the path, so the path is untrusted input. Extension and size
+// are checked here for a fast, local refusal (the API enforces them again), and
+// SUDOMOCK_UPLOAD_DIR confines reads to one directory tree when set, which is the
+// same shape AWS ships for its own local MCP server.
+// ---------------------------------------------------------------------------
+
+const UPLOAD_KINDS = {
+  psd: { extensions: ["psd", "psb"], maxBytes: 300 * 1024 * 1024 },
+  artwork: { extensions: ["png", "jpg", "jpeg", "webp", "gif"], maxBytes: 100 * 1024 * 1024 },
+} as const;
+
+type UploadKind = keyof typeof UPLOAD_KINDS;
+
+export async function readLocalUpload(filePath: string, kind: UploadKind): Promise<Buffer> {
+  const { readFile, stat, realpath } = await import("node:fs/promises");
+  const { resolve, relative, isAbsolute } = await import("node:path");
+
+  const resolved = resolve(filePath);
+  const allowed = UPLOAD_KINDS[kind].extensions;
+  const extension = resolved.includes(".") ? resolved.split(".").pop()!.toLowerCase() : "";
+  if (!allowed.includes(extension as never)) {
+    throw new Error(`${kind} uploads accept: ${allowed.join(", ")}. Got "${extension || "no extension"}".`);
+  }
+
+  // Resolve symlinks BEFORE the containment check, so a link inside the allowed
+  // directory cannot point at a file outside it.
+  let real: string;
+  try {
+    real = await realpath(resolved);
+  } catch {
+    throw new Error(`No file at ${resolved}`);
+  }
+
+  const confineTo = process.env.SUDOMOCK_UPLOAD_DIR;
+  if (confineTo) {
+    const root = await realpath(resolve(confineTo));
+    const rel = relative(root, real);
+    if (rel.startsWith("..") || isAbsolute(rel)) {
+      throw new Error(`SUDOMOCK_UPLOAD_DIR is set, so only files under ${root} can be uploaded.`);
+    }
+  }
+
+  const info = await stat(real);
+  if (!info.isFile()) throw new Error(`Not a file: ${real}`);
+  if (info.size === 0) throw new Error(`File is empty: ${real}`);
+  if (info.size > UPLOAD_KINDS[kind].maxBytes) {
+    const limitMb = Math.round(UPLOAD_KINDS[kind].maxBytes / 1024 / 1024);
+    throw new Error(`File is ${Math.round(info.size / 1024 / 1024)} MB; the limit for ${kind} is ${limitMb} MB.`);
+  }
+
+  return readFile(real);
+}
+
+server.tool(
+  "upload_local_file",
+  "Upload a file from this machine and get back a URL for it. Use this when the file exists on disk and a tool needs a URL: pass the returned file_url as psd_file_url to upload_psd, or as artwork_url to any render tool. Set kind to \"psd\" for a .psd/.psb template or \"artwork\" for a .png/.jpg/.webp/.gif image. Costs 0 credits.",
+  {
+    file_path: z.string().describe("Path to the file on this machine. Relative paths resolve against the server's working directory."),
+    kind: z
+      .enum(["psd", "artwork"])
+      .default("psd")
+      .describe("\"psd\" for a .psd or .psb template, \"artwork\" for an image."),
+  },
+  async ({ file_path, kind }) => {
+    let bytes: Buffer;
+    try {
+      bytes = await readLocalUpload(file_path, kind as UploadKind);
+    } catch (error) {
+      return {
+        isError: true,
+        content: [{ type: "text" as const, text: (error as Error).message }],
+      };
+    }
+
+    const signed = (await apiRequest({
+      method: "POST",
+      path: "/api/v1/uploads/sign",
+      body: { filename: file_path.split(/[\\/]/).pop() ?? "upload", kind },
+    })) as { data?: { upload_url?: string; file_url?: string } };
+
+    const uploadUrl = signed?.data?.upload_url;
+    const fileUrl = signed?.data?.file_url;
+    if (!uploadUrl || !fileUrl) {
+      return {
+        isError: true,
+        content: [{ type: "text" as const, text: "Could not prepare the upload. Try again." }],
+      };
+    }
+
+    // The signed URL is used here and discarded. It is deliberately not part of
+    // the tool result: it is a bearer capability, and a tool result is a logged,
+    // retained channel.
+    const put = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: new Uint8Array(bytes),
+    });
+    if (!put.ok) {
+      return {
+        isError: true,
+        content: [{ type: "text" as const, text: `Upload failed (${put.status}). Try again.` }],
+      };
+    }
+
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({ file_url: fileUrl, bytes: bytes.length, kind }, null, 2),
+      }],
+    };
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Start server
 // ---------------------------------------------------------------------------
 
