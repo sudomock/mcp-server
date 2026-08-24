@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.7.0] - 2026-08-24
+
+### Added
+- `upload_local_file` takes a path on this machine and returns a `file_url` to
+  hand to `upload_psd` (as `psd_file_url`) or any render tool (as
+  `artwork_url`). Until now every tool needed a URL, so a file sitting on disk
+  had to be hosted somewhere first. MCP itself offers no way to carry file
+  bytes: the three attempts to add one never landed, `roots` carries paths and
+  is deprecated as of 2026-07-28, and elicitation results are limited to
+  scalars. Running on the user's own machine is what lets this server close the
+  gap, and it closes it better than a hosted server can -- it reads the file and
+  uploads it itself, so the signed upload URL is never returned to the model and
+  never enters the transcript.
+- `SUDOMOCK_UPLOAD_DIR` confines reads to a single directory tree. The model
+  chooses the path, so the path is untrusted; symlinks are resolved before the
+  containment check, so a link inside the tree cannot point outside it. Unset by
+  default, which leaves any accepted extension readable.
+
 ## [2.6.0] - 2026-08-21
 
 ### Added

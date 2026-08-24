@@ -59,6 +59,7 @@ const EXPECTED_TOOLS = [
   "test_webhook_endpoint",
   "list_webhook_deliveries",
   "replay_webhook_delivery",
+  "upload_local_file",
 ];
 
 test("registers every expected tool with a description + object input schema", async () => {
