@@ -24,8 +24,17 @@ const BASE_URL = "https://api.sudomock.com";
 const DEFAULT_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 120_000;
 const USER_AGENT = "SudoMock-MCP/2.4.0 (stdio)";
-const NON_PUBLIC_TEXT =
-  /_PATTERN_/i;
+// Son savunma suzgeci: API'den donen bir metin motor detayi tasiyorsa yutulur.
+// Desen kodlu tutulur cunku bu depo ve npm paketi PUBLIC; terimlerin kendisi
+// (saglayici adlari, boru hatti kavramlari) listelendiginde suzgec sizintiyi
+// onlemek yerine sizintinin kaynagi olur. Davranis kodlamadan ONCEKI ile ayni.
+const NON_PUBLIC_TEXT = new RegExp(
+  Buffer.from(
+    "_PATTERN_",
+    "base64",
+  ).toString(),
+  "i",
+);
 
 function getApiKey(): string {
   const key = process.env.SUDOMOCK_API_KEY;
