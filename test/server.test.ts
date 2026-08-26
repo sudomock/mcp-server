@@ -206,23 +206,14 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
     assert.ok(!("advanced_model" in (video.properties ?? {})));
 
     const publicToolCopy = JSON.stringify(tools).toLowerCase();
-    for (const forbidden of [
-      "veo",
-      "kling",
-      "seedance",
-      "birefnet",
-      "fal.ai",
-      "ideogram",
-      "server-side download",
-      "auto-router",
-      "cdn url",
-      "mask_uuid",
-      "region_index",
-      "segmentation",
-      "displacement",
-      "shading",
-      "advanced_model",
-    ]) {
+    // Terimler kodlu: bu depo PUBLIC ve liste, gizlemeye calistigi her ismi
+    // (saglayici adlari, boru hatti kavramlari) tek yerde toplayarak sizintinin
+    // kendisi haline geliyordu. Assert davranisi ayni.
+    const FORBIDDEN = Buffer.from(
+      "dmVvLGtsaW5nLHNlZWRhbmNlLGJpcmVmbmV0LGZhbC5haSxpZGVvZ3JhbSxzZXJ2ZXItc2lkZSBkb3dubG9hZCxhdXRvLXJvdXRlcixjZG4gdXJsLG1hc2tfdXVpZCxyZWdpb25faW5kZXgsc2VnbWVudGF0aW9uLGRpc3BsYWNlbWVudCxzaGFkaW5nLGFkdmFuY2VkX21vZGVs",
+      "base64",
+    ).toString().split(",");
+    for (const forbidden of FORBIDDEN) {
       assert.ok(!publicToolCopy.includes(forbidden), `public tool copy contains ${forbidden}`);
     }
   } finally {
