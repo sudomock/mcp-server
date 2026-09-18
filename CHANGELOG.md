@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added
+- The photo mockup webhook events are subscribable under their own names:
+  `photo_mockup.ready`, `photo_mockup.rejected`, `photo_mockup.failed`,
+  `photo_mockup_render.succeeded`, `photo_mockup_render.failed`. The legacy
+  `2d_mockup.*` / `2d_render.*` spellings stay accepted everywhere an event
+  type is taken (`create_webhook_endpoint`, `update_webhook_endpoint`,
+  `list_webhook_deliveries`).
+- `create_webhook_endpoint` takes `event_naming` (`legacy` | `current`): the
+  spelling of the photo mockup events this endpoint receives, with the
+  payload's `kind` following the same pin. Omitted, the API default (`current`)
+  applies. Every endpoint result now carries its `event_naming`, so an
+  existing endpoint's pin (`legacy` for endpoints registered before the pin)
+  can be read from `list_webhook_endpoints`.
+- `list_jobs` filters by `kind` `photo_mockup_create` / `photo_mockup_render`
+  as well as the legacy `2d_create` / `2d_render`; either spelling selects
+  both.
+
+
 ## [2.7.1] - 2026-09-18
 
 ### Added
