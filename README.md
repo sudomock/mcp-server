@@ -123,6 +123,15 @@ applicable, and optional `export_format` / `duration_ms`. Event types:
 `video.failed`, `2d_mockup.ready`, `2d_mockup.rejected`, `2d_mockup.failed`,
 `2d_render.succeeded`, `2d_render.failed`, `webhook.test`.
 
+### Logs
+
+Each tool call writes one JSON line to stderr, which your MCP host keeps in its
+log file: the tool name, how long the call took, and whether it succeeded, for
+example `{"event":"mcp_tool_call","tool":"list_mockups","duration_ms":312,"ok":true}`.
+Arguments, API keys, file contents and API responses are never logged. Every
+API request identifies this package as `mcp-stdio/<version>` in its
+`User-Agent` and `X-SudoMock-Client` headers.
+
 ## Pricing and account limits
 
 Pay as you go is the entry tier, and it has no subscription. One PSD render costs

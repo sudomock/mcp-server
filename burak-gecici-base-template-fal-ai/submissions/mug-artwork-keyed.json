@@ -1,0 +1,19 @@
+{
+  "id": "mug-artwork-keyed",
+  "accepted_at_utc": "2026-08-21T20:07:37Z",
+  "request_id": "01a025ef-a444-7d90-bc57-ece2a2443936",
+  "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a444-7d90-bc57-ece2a2443936/status",
+  "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a444-7d90-bc57-ece2a2443936",
+  "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a444-7d90-bc57-ece2a2443936/cancel",
+  "response_body": {
+    "status": "IN_QUEUE",
+    "request_id": "01a025ef-a444-7d90-bc57-ece2a2443936",
+    "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a444-7d90-bc57-ece2a2443936",
+    "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a444-7d90-bc57-ece2a2443936/status",
+    "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a444-7d90-bc57-ece2a2443936/cancel",
+    "logs": null,
+    "metrics": {},
+    "queue_position": 7
+  },
+  "response_body_sha256": "55c01788d322412964ff3bbae21680a258b6931e9a641c8ac5b9935d189b8261"
+}

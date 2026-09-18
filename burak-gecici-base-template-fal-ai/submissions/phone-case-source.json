@@ -1,0 +1,19 @@
+{
+  "id": "phone-case-source",
+  "accepted_at_utc": "2026-08-21T20:07:37Z",
+  "request_id": "01a025ef-a449-7fb2-9ffa-ab522f296b7d",
+  "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a449-7fb2-9ffa-ab522f296b7d/status",
+  "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a449-7fb2-9ffa-ab522f296b7d",
+  "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a449-7fb2-9ffa-ab522f296b7d/cancel",
+  "response_body": {
+    "status": "IN_QUEUE",
+    "request_id": "01a025ef-a449-7fb2-9ffa-ab522f296b7d",
+    "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a449-7fb2-9ffa-ab522f296b7d",
+    "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a449-7fb2-9ffa-ab522f296b7d/status",
+    "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a449-7fb2-9ffa-ab522f296b7d/cancel",
+    "logs": null,
+    "metrics": {},
+    "queue_position": 1
+  },
+  "response_body_sha256": "15c016cbda034c8ed9b7860442fd9e659d493e9215dd545c40dbc6c45453b18a"
+}

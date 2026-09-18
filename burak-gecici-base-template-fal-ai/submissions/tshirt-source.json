@@ -1,0 +1,19 @@
+{
+  "id": "tshirt-source",
+  "accepted_at_utc": "2026-08-21T20:07:37Z",
+  "request_id": "01a025ef-a43f-7e01-b47c-3c632abd92c9",
+  "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a43f-7e01-b47c-3c632abd92c9/status",
+  "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a43f-7e01-b47c-3c632abd92c9",
+  "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a43f-7e01-b47c-3c632abd92c9/cancel",
+  "response_body": {
+    "status": "IN_QUEUE",
+    "request_id": "01a025ef-a43f-7e01-b47c-3c632abd92c9",
+    "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a43f-7e01-b47c-3c632abd92c9",
+    "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a43f-7e01-b47c-3c632abd92c9/status",
+    "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a43f-7e01-b47c-3c632abd92c9/cancel",
+    "logs": null,
+    "metrics": {},
+    "queue_position": 4
+  },
+  "response_body_sha256": "2ea6273be1ac4508a7b05be133645a5f32f1141cf59b6eb8bb4fad4872f58f18"
+}

@@ -1,0 +1,19 @@
+{
+  "id": "phone-case-artwork-keyed",
+  "accepted_at_utc": "2026-08-21T20:07:37Z",
+  "request_id": "01a025ef-a44a-7ed2-bbf8-204ccedeeba7",
+  "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a44a-7ed2-bbf8-204ccedeeba7/status",
+  "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a44a-7ed2-bbf8-204ccedeeba7",
+  "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a44a-7ed2-bbf8-204ccedeeba7/cancel",
+  "response_body": {
+    "status": "IN_QUEUE",
+    "request_id": "01a025ef-a44a-7ed2-bbf8-204ccedeeba7",
+    "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a44a-7ed2-bbf8-204ccedeeba7",
+    "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a44a-7ed2-bbf8-204ccedeeba7/status",
+    "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a44a-7ed2-bbf8-204ccedeeba7/cancel",
+    "logs": null,
+    "metrics": {},
+    "queue_position": 1
+  },
+  "response_body_sha256": "9eba2aa45683600b744687d3b43f3a1529735d0f0aa35f6968d51b78990fef7d"
+}

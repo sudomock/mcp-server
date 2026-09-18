@@ -1,0 +1,19 @@
+{
+  "id": "mug-source",
+  "accepted_at_utc": "2026-08-21T20:07:37Z",
+  "request_id": "01a025ef-a439-7e93-a5d8-9fda0eca83ae",
+  "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a439-7e93-a5d8-9fda0eca83ae/status",
+  "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a439-7e93-a5d8-9fda0eca83ae",
+  "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a439-7e93-a5d8-9fda0eca83ae/cancel",
+  "response_body": {
+    "status": "IN_QUEUE",
+    "request_id": "01a025ef-a439-7e93-a5d8-9fda0eca83ae",
+    "response_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a439-7e93-a5d8-9fda0eca83ae",
+    "status_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a439-7e93-a5d8-9fda0eca83ae/status",
+    "cancel_url": "https://queue.fal.run/fal-ai/gpt-image-2/requests/01a025ef-a439-7e93-a5d8-9fda0eca83ae/cancel",
+    "logs": null,
+    "metrics": {},
+    "queue_position": 3
+  },
+  "response_body_sha256": "9c9f6ee86dd43103b26497a6f6999a013d507664ba7d86d2a3bd9bf699fa9642"
+}

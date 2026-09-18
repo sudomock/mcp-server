@@ -1,0 +1,143 @@
+{
+  "decision_id": "SG-20260821-125",
+  "generated_at_utc": "2026-08-21T20:09:45Z",
+  "model": "fal-ai/gpt-image-2",
+  "request_count": 6,
+  "results": [
+    {
+      "id": "mug-artwork-keyed",
+      "kind": "artwork_keyed",
+      "model": "fal-ai/gpt-image-2",
+      "quality": "high",
+      "request_id": "01a025ef-a444-7d90-bc57-ece2a2443936",
+      "requested_dimensions": [
+        1536,
+        768
+      ],
+      "prompt": "Create one standalone horizontal ceramic-mug wrap artwork only, centered on a perfectly flat, uniform pure chroma-green #00FF00 background. Make a wide panoramic abstract design: a warm coral sunrise over layered cream, cobalt-blue, and deep-navy rolling wave bands, with two small terracotta starburst accents. The artwork should read clearly when wrapped around a mug, occupy a wide 2:1 band, and leave generous empty green margin on every side. Crisp clean edges, flat print-ready colors, no green anywhere in the artwork, no shadow, no mug, no product scene, no mockup, no photograph, no text, letters, numbers, logo, trademark, watermark, signature, or named-artist imitation. The background must remain exactly one solid chroma color through all four corners for later removal. Zero reference images.",
+      "content_type": "image/png",
+      "bytes": 996132,
+      "sha256": "f594fc4e705cbd47a6b10134a4e4fd54b85482c54fc90ceadabb8b5fc8227d5b",
+      "raw_path": "output/2026-08-19-agent-first-growth-backlog/A-14-photo-to-mockup-fixtures/replacement-attempt/raw/mug-artwork-keyed.png",
+      "cost_usd_reported": null,
+      "cost_usd_ceiling": 0.16,
+      "synthetic": true,
+      "customer_data": false,
+      "rights_basis": "Founder-authorized private SudoMock fixture generation; no reference input",
+      "public_publishability": false
+    },
+    {
+      "id": "mug-source",
+      "kind": "source",
+      "model": "fal-ai/gpt-image-2",
+      "quality": "high",
+      "request_id": "01a025ef-a439-7e93-a5d8-9fda0eca83ae",
+      "requested_dimensions": [
+        1536,
+        1024
+      ],
+      "prompt": "Use case: Photo to Mockup detector fixture source image.\nCreate one photorealistic premium product photograph of exactly one completely blank glossy white ceramic coffee mug on a restrained warm-gray stone tabletop. Show the mug at a three-quarter angle with the handle fully visible on the right and a broad uninterrupted side wall facing the camera. Keep the entire mug and handle inside frame. The printable ceramic body must be pure blank white with realistic curved highlights but no harsh glare, steam, liquid spill, occlusion, or prop crossing it. Use a softly blurred neutral studio background, natural side light, clean contact shadow, and enough contrast to read the mug silhouette. No people, hands, spoon, saucer, second mug, print, artwork, text, letters, numbers, logo, trademark, branding, watermark, signature, or decorative pattern. Real catalog photography, not an illustration or finished mockup. Zero reference images.",
+      "content_type": "image/png",
+      "bytes": 1848471,
+      "sha256": "7247cb32399a01102a456d3193d5c2065dbdd523886b251443775c82c5b0feef",
+      "raw_path": "output/2026-08-19-agent-first-growth-backlog/A-14-photo-to-mockup-fixtures/replacement-attempt/raw/mug-source.png",
+      "cost_usd_reported": null,
+      "cost_usd_ceiling": 0.16,
+      "synthetic": true,
+      "customer_data": false,
+      "rights_basis": "Founder-authorized private SudoMock fixture generation; no reference input",
+      "public_publishability": false
+    },
+    {
+      "id": "phone-case-artwork-keyed",
+      "kind": "artwork_keyed",
+      "model": "fal-ai/gpt-image-2",
+      "quality": "high",
+      "request_id": "01a025ef-a44a-7ed2-bbf8-204ccedeeba7",
+      "requested_dimensions": [
+        1024,
+        1536
+      ],
+      "prompt": "Create one standalone vertical phone-case artwork only, centered on a perfectly flat, uniform pure chroma-green #00FF00 background. Design a tall edge-to-edge-ready abstract composition of interlocking cobalt-blue, terracotta, coral, cream, and deep-navy organic arches and rounded geometric shapes, with the main visual weight below the top camera area. Keep the artwork itself in a clean rounded-rectangle-safe vertical field and leave generous empty green margin around it on all sides. Crisp print-ready edges, flat colors, no green anywhere in the artwork, no shadow, no phone, no case, no product scene, no mockup, no photograph, no text, letters, numbers, logo, trademark, watermark, signature, or named-artist imitation. The background must be exactly one solid chroma color through all four corners for later removal. Zero reference images.",
+      "content_type": "image/png",
+      "bytes": 1332829,
+      "sha256": "bfa28f720a2129898671ba9f03342b8f105dafc8cd322dd1891b437b31e710df",
+      "raw_path": "output/2026-08-19-agent-first-growth-backlog/A-14-photo-to-mockup-fixtures/replacement-attempt/raw/phone-case-artwork-keyed.png",
+      "cost_usd_reported": null,
+      "cost_usd_ceiling": 0.16,
+      "synthetic": true,
+      "customer_data": false,
+      "rights_basis": "Founder-authorized private SudoMock fixture generation; no reference input",
+      "public_publishability": false
+    },
+    {
+      "id": "phone-case-source",
+      "kind": "source",
+      "model": "fal-ai/gpt-image-2",
+      "quality": "high",
+      "request_id": "01a025ef-a449-7fb2-9ffa-ab522f296b7d",
+      "requested_dimensions": [
+        1024,
+        1536
+      ],
+      "prompt": "Use case: Photo to Mockup detector fixture source image.\nCreate one photorealistic premium catalog photograph of exactly one completely blank matte off-white smartphone case fitted to an unbranded phone, viewed from the rear at a slight three-quarter perspective. The full back panel, rounded corners, side thickness, and camera cutout are visible and entirely inside the portrait frame. Keep the broad printable back surface clean, unobstructed, evenly lit, and free of glare. Place it upright against a dark charcoal studio background with a subtle base shadow and strong silhouette contrast. The camera lenses may appear only inside the cutout; no device logo or recognizable brand styling. No hands, people, stand crossing the case, second device, print, artwork, pattern, text, letters, numbers, logo, trademark, branding, watermark, signature, or props. Real product photography, not an illustration or finished mockup. Zero reference images.",
+      "content_type": "image/png",
+      "bytes": 1878072,
+      "sha256": "789a82095557dca6a84bac6d536bfd65d7177624a89eb2565b6318fc1897cbaa",
+      "raw_path": "output/2026-08-19-agent-first-growth-backlog/A-14-photo-to-mockup-fixtures/replacement-attempt/raw/phone-case-source.png",
+      "cost_usd_reported": null,
+      "cost_usd_ceiling": 0.16,
+      "synthetic": true,
+      "customer_data": false,
+      "rights_basis": "Founder-authorized private SudoMock fixture generation; no reference input",
+      "public_publishability": false
+    },
+    {
+      "id": "tshirt-artwork-keyed",
+      "kind": "artwork_keyed",
+      "model": "fal-ai/gpt-image-2",
+      "quality": "high",
+      "request_id": "01a025ef-a440-7ea1-8fb1-30c08b9b94e5",
+      "requested_dimensions": [
+        1024,
+        1024
+      ],
+      "prompt": "Create one standalone T-shirt chest artwork only, centered on a perfectly flat, uniform pure chroma-green #00FF00 background. The artwork is a bold screen-print-ready abstract graphic: a large terracotta sun disk behind three flowing cream and deep-navy wave shapes, with a few small coral geometric accents. Compact roughly square composition with generous empty green margin on every side. Crisp clean edges, limited flat ink colors, no green anywhere in the artwork, no gradients into the green background, no drop shadow, no fabric, no garment, no product scene, no mockup, no photograph, no text, letters, numbers, logo, trademark, watermark, signature, or named-artist imitation. The background must be exactly one solid chroma color all the way to all four corners for later removal. Zero reference images.",
+      "content_type": "image/png",
+      "bytes": 936483,
+      "sha256": "961758866b14e482380d3146f89923aa254bca07e82d721ce6b4dab35528202f",
+      "raw_path": "output/2026-08-19-agent-first-growth-backlog/A-14-photo-to-mockup-fixtures/replacement-attempt/raw/tshirt-artwork-keyed.png",
+      "cost_usd_reported": null,
+      "cost_usd_ceiling": 0.16,
+      "synthetic": true,
+      "customer_data": false,
+      "rights_basis": "Founder-authorized private SudoMock fixture generation; no reference input",
+      "public_publishability": false
+    },
+    {
+      "id": "tshirt-source",
+      "kind": "source",
+      "model": "fal-ai/gpt-image-2",
+      "quality": "high",
+      "request_id": "01a025ef-a43f-7e01-b47c-3c632abd92c9",
+      "requested_dimensions": [
+        1536,
+        1536
+      ],
+      "prompt": "Use case: Photo to Mockup detector fixture source image.\nCreate one photorealistic premium catalog photograph of exactly one completely blank heavyweight warm-white cotton T-shirt shown straight-on on an invisible ghost mannequin torso. The full front of the shirt, collar, sleeves, hem, and side edges are visible. Include natural realistic drape, subtle chest folds, seam detail, ribbed collar, and visible cotton texture, while keeping the central chest print area broad, unobstructed, evenly lit, and blank. Use a matte charcoal-gray seamless studio background with strong clean boundary contrast and a soft natural shadow behind the garment. Center the shirt and let it occupy about 70 percent of the square frame. No visible person, head, neck, skin, hands, hanger, clips, props, second garment, print, artwork, pattern, text, letters, numbers, logo, branding, tag text, watermark, signature, glare, or occlusion. Real product photography, not an illustration or finished mockup. Zero reference images.",
+      "content_type": "image/png",
+      "bytes": 2848996,
+      "sha256": "77b932c5dcf0e8ee5e0e0c0bdbe6c36c143334809be9fa0fba915c7e4b874a5a",
+      "raw_path": "output/2026-08-19-agent-first-growth-backlog/A-14-photo-to-mockup-fixtures/replacement-attempt/raw/tshirt-source.png",
+      "cost_usd_reported": null,
+      "cost_usd_ceiling": 0.16,
+      "synthetic": true,
+      "customer_data": false,
+      "rights_basis": "Founder-authorized private SudoMock fixture generation; no reference input",
+      "public_publishability": false
+    }
+  ],
+  "failures": [],
+  "actual_provider_cost_usd": null,
+  "maximum_authorized_cost_usd": 0.96
+}
