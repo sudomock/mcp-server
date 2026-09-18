@@ -660,6 +660,9 @@ function publicWebhookEndpoint(result: unknown): Record<string, unknown> {
     secret: endpoint.secret ?? null,
     description: endpoint.description ?? null,
     event_types: Array.isArray(endpoint.event_types) ? endpoint.event_types : [],
+    // Which spelling of the photo-mockup events this endpoint receives
+    // ('legacy' or 'current'); the payload's kind follows the same pin.
+    event_naming: endpoint.event_naming ?? null,
     enabled: endpoint.enabled === true,
     created_at: endpoint.created_at ?? null,
     updated_at: endpoint.updated_at ?? null,
@@ -1452,7 +1455,8 @@ async function renderTwoD(
     timeout: RENDER_TIMEOUT,
   });
 
-  // is_async=true -> 202 + job_id (kind "2d_render"); hand back the poll contract.
+  // is_async=true -> 202 + job_id (kind "2d_render" on this path; the family
+  // spelling is "photo_mockup_render"); hand back the poll contract.
   // Reuse get_job / wait_for_job to reach the terminal job (result_url).
   if (args.is_async) {
     return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
@@ -1747,7 +1751,7 @@ server.tool(
 
 server.tool(
   "get_job",
-  "Get the current status of any async render, video, upload, or 2D job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
+  "Get the current status of any async render, video, upload, or photo mockup (2D) job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
   {
     job_id: z.string().describe("The job_id returned by any async submission"),
   },
@@ -1763,9 +1767,12 @@ server.tool(
 
 server.tool(
   "list_jobs",
-  "List your async jobs, including PSD renders, videos, uploads, and 2D creation/renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
+  "List your async jobs, including PSD renders, videos, uploads, and photo mockup (2D) creation/renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
   {
-    kind: z.enum(["video", "render", "upload", "2d_create", "2d_render"]).optional().describe("Filter by job kind. Omit for all kinds."),
+    kind: z
+      .enum(["video", "render", "upload", "2d_create", "2d_render", "photo_mockup_create", "photo_mockup_render"])
+      .optional()
+      .describe("Filter by job kind. A photo mockup job has two spellings of its kind (photo_mockup_create / photo_mockup_render, or the legacy 2d_create / 2d_render); either spelling selects both. Omit for all kinds."),
     mockup_uuid: z.string().optional().describe("Filter by source mockup UUID (e.g. one mockup's videos). Raw-image videos are never returned by this filter."),
     limit: z.number().int().min(1).max(50).default(20).describe("Max jobs per page (1-50, default 20)"),
     cursor: z.string().optional().describe("Opaque keyset cursor from a prior page's next_cursor"),
@@ -1790,7 +1797,7 @@ server.tool(
 
 server.tool(
   "wait_for_job",
-  "Poll any async render, video, upload, or 2D job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
+  "Poll any async render, video, upload, or photo mockup (2D) job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
   {
     job_id: z.string().describe("The job_id to wait on (from an async submission or render_video)"),
     poll_interval_seconds: z
@@ -1958,11 +1965,23 @@ server.tool(
 // HMAC-SHA256 over `${timestamp}.${rawBody}` with the endpoint's secret) and
 // "X-SudoMock-Timestamp: <unix-seconds>". Verify in constant time and reject if
 // |now - timestamp| > 300s (User-Agent SudoMock-Webhook/1.0). Standard job
-// events and the typed 2D create/render events have separate documented bodies.
+// events and the typed photo mockup create/render events have separate
+// documented bodies.
 //
 // Event types: render.succeeded, render.failed, upload.succeeded,
-// video.succeeded, video.failed, 2d_mockup.ready, 2d_mockup.rejected,
-// 2d_mockup.failed, 2d_render.succeeded, 2d_render.failed, webhook.test.
+// video.succeeded, video.failed, photo_mockup.ready, photo_mockup.rejected,
+// photo_mockup.failed, photo_mockup_render.succeeded,
+// photo_mockup_render.failed, webhook.test.
+//
+// The five photo mockup events also have a legacy spelling (2d_mockup.ready,
+// 2d_mockup.rejected, 2d_mockup.failed, 2d_render.succeeded,
+// 2d_render.failed). Both spellings are subscribable; which one a delivery
+// carries is the endpoint's `event_naming` pin ('current' = family names,
+// 'legacy' = 2d_* names), and the payload's `kind` follows the same pin.
+// Endpoints created before the pin existed are 'legacy'; new endpoints default
+// to 'current' on the API side. The pin is set at create and changed at update;
+// a re-pin sent alone re-spells the stored subscription list to match. The list
+// below is in the API's own order.
 // ---------------------------------------------------------------------------
 
 const WEBHOOK_EVENT_TYPES = [
@@ -1976,8 +1995,15 @@ const WEBHOOK_EVENT_TYPES = [
   "2d_mockup.failed",
   "2d_render.succeeded",
   "2d_render.failed",
+  "photo_mockup.ready",
+  "photo_mockup.rejected",
+  "photo_mockup.failed",
+  "photo_mockup_render.succeeded",
+  "photo_mockup_render.failed",
   "webhook.test",
 ] as const;
+
+const WEBHOOK_EVENT_NAMINGS = ["legacy", "current"] as const;
 
 server.tool(
   "create_webhook_endpoint",
@@ -1987,11 +2013,16 @@ server.tool(
     event_types: z
       .array(z.enum(WEBHOOK_EVENT_TYPES))
       .default([])
-      .describe("Event types to subscribe to. Supports render, upload, video, 2D mockup, 2D render, and webhook.test events. Pass an empty array (the default) to subscribe to ALL events."),
+      .describe("Event types to subscribe to. Supports render, upload, video, photo mockup create (photo_mockup.*), photo mockup render (photo_mockup_render.*), and webhook.test events; the legacy 2d_mockup.* / 2d_render.* spellings of the photo mockup events are accepted too. Pass an empty array (the default) to subscribe to ALL events."),
+    event_naming: z
+      .enum(WEBHOOK_EVENT_NAMINGS)
+      .optional()
+      .describe("Which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to take the API default ('current'). Pick 'legacy' only for a receiver written against the old names."),
     description: z.string().max(255).optional().describe("Optional human-readable label for this endpoint"),
   },
-  async ({ url, event_types, description }) => {
+  async ({ url, event_types, event_naming, description }) => {
     const body: Record<string, unknown> = { url, event_types };
+    if (event_naming !== undefined) body.event_naming = event_naming;
     if (description) body.description = description;
 
     const result = await apiRequest({
@@ -2024,7 +2055,7 @@ server.tool(
 
 server.tool(
   "update_webhook_endpoint",
-  "Update a webhook endpoint in place: change its url, description, subscribed event_types, or enable/disable it (enabled:false pauses deliveries without losing the signing secret). All fields optional -- only the ones you pass are changed. The secret is NOT rotated or returned here.",
+  "Update a webhook endpoint in place: change its url, description, subscribed event_types, its event_naming pin, or enable/disable it (enabled:false pauses deliveries without losing the signing secret). All fields optional -- only the ones you pass are changed. The secret is NOT rotated or returned here.",
   {
     endpoint_id: z.string().describe("The id of the webhook endpoint to update (from list_webhook_endpoints)"),
     url: z.string().optional().describe("New https endpoint URL (publicly routable; private/loopback hosts are rejected)"),
@@ -2033,13 +2064,18 @@ server.tool(
       .array(z.enum(WEBHOOK_EVENT_TYPES))
       .optional()
       .describe("Replacement list of subscribed event types. Pass an empty array to subscribe to ALL events."),
+    event_naming: z
+      .enum(WEBHOOK_EVENT_NAMINGS)
+      .optional()
+      .describe("Re-pin which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to keep the endpoint's current pin. Sent on its own, the re-pin re-spells the stored subscription list to match. Move an endpoint to 'current' only once its receiver handles the new names."),
     enabled: z.boolean().optional().describe("Set false to pause deliveries (secret preserved), true to resume"),
   },
-  async ({ endpoint_id, url, description, event_types, enabled }) => {
+  async ({ endpoint_id, url, description, event_types, event_naming, enabled }) => {
     const body: Record<string, unknown> = {};
     if (url !== undefined) body.url = url;
     if (description !== undefined) body.description = description;
     if (event_types !== undefined) body.event_types = event_types;
+    if (event_naming !== undefined) body.event_naming = event_naming;
     if (enabled !== undefined) body.enabled = enabled;
 
     const result = await apiRequest({
