@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-09-18
+
 ### Added
 - Every tool call writes one JSON line to stderr (`event`, `tool`,
   `duration_ms`, `ok`, `error_type`), which MCP hosts keep in their log file.
