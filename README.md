@@ -58,11 +58,11 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `delete_2d_mockup` | Delete a 2D mockup template | 0 |
 | `get_job` | Check the status of an async job by job_id | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
-| `list_jobs` | List async render, video, upload, and 2D jobs | 0 |
+| `list_jobs` | List async render, video, upload, and photo mockup (2D) jobs | 0 |
 | `get_account` | Check plan, credits, prepaid balance, and usage | 0 |
 | `update_mockup` | Rename a mockup template | 0 |
 | `delete_mockup` | Delete a mockup template | 0 |
-| `create_webhook_endpoint` | Register a webhook for async job completion | 0 |
+| `create_webhook_endpoint` | Register a webhook for async job completion, pinned to an event naming | 0 |
 | `list_webhook_endpoints` | List your webhook endpoints | 0 |
 | `update_webhook_endpoint` | Edit or enable/disable a webhook endpoint | 0 |
 | `delete_webhook_endpoint` | Delete a webhook endpoint | 0 |
@@ -114,14 +114,26 @@ creation/rotation) and `X-SudoMock-Timestamp` (unix seconds). Verify in constant
 time and reject if `|now - timestamp| > 300s`.
 
 Render, upload, and video job deliveries use
-`{event, job_id, kind, status, result_url, error, created_at}`. The typed 2D
-creation events add `version`, `mockup_id`, `name`, and either `print_areas`
-(`ready`) or `reason` (`rejected`). The typed 2D render events carry
-`mockup_id`, `result_url`, a public `{error_code, message}` failure when
-applicable, and optional `export_format` / `duration_ms`. Event types:
+`{event, job_id, kind, status, result_url, error, created_at}`. The typed photo
+mockup creation events add `version`, `mockup_id`, `name`, and either
+`print_areas` (`ready`) or `reason` (`rejected`). The typed photo mockup render
+events carry `mockup_id`, `result_url`, a public `{error_code, message}` failure
+when applicable, and optional `export_format` / `duration_ms`. Event types:
 `render.succeeded`, `render.failed`, `upload.succeeded`, `video.succeeded`,
-`video.failed`, `2d_mockup.ready`, `2d_mockup.rejected`, `2d_mockup.failed`,
-`2d_render.succeeded`, `2d_render.failed`, `webhook.test`.
+`video.failed`, `photo_mockup.ready`, `photo_mockup.rejected`,
+`photo_mockup.failed`, `photo_mockup_render.succeeded`,
+`photo_mockup_render.failed`, `webhook.test`.
+
+The five photo mockup events also have a legacy spelling: `2d_mockup.ready`,
+`2d_mockup.rejected`, `2d_mockup.failed`, `2d_render.succeeded`,
+`2d_render.failed` (with `kind` `2d_create` / `2d_render` in the payload).
+Which spelling an endpoint receives is its `event_naming` pin, set at
+`create_webhook_endpoint` and returned on every endpoint: `current` (the names
+above, the default for new endpoints) or `legacy`. Endpoints registered before
+the pin existed stay on `legacy`, so a receiver written against the old names
+keeps working unchanged. Once that receiver handles the new names, move it with
+`update_webhook_endpoint` and `event_naming: "current"`; sent on its own, the
+re-pin re-spells the endpoint's stored subscription list to match.
 
 ### Logs
 
