@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+## [2.7.1] - 2026-09-18
+
+### Added
+- Every tool call writes one JSON line to stderr (`event`, `tool`,
+  `duration_ms`, `ok`, `error_type`), which MCP hosts keep in their log file.
+  Arguments, API keys, file contents and API responses are never written.
+- Every API request carries `X-SudoMock-Client: mcp-stdio/<version>` and the
+  same value as `User-Agent`, so a request can be attributed to this package
+  and version.
+
+### Fixed
+- The version sent to the API and reported in the MCP handshake is read from
+  package.json. It was hand-written and had stayed at 2.4.0 across the last
+  three releases.
+
 ## [2.7.0] - 2026-08-24
 
 ### Added

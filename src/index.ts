@@ -13,7 +13,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { randomUUID } from "node:crypto";
-import { pathToFileURL } from "node:url";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -23,7 +25,15 @@ import { z } from "zod";
 const BASE_URL = "https://api.sudomock.com";
 const DEFAULT_TIMEOUT = 30_000;
 const RENDER_TIMEOUT = 120_000;
-const USER_AGENT = "SudoMock-MCP/2.4.0 (stdio)";
+const PACKAGE_NAME = "@sudomock/mcp";
+const PACKAGE_VERSION = readPackageVersion();
+// How this process introduces itself to the API, sent as both User-Agent and
+// X-SudoMock-Client. The version comes from package.json so it cannot drift
+// from what npm published.
+const CLIENT_ID = `mcp-stdio/${PACKAGE_VERSION}`;
+// User-Agent keeps the SudoMock-MCP/ prefix: the API attributes stdio renders by that
+// prefix (source=stdio_mcp). The version travels in X-SudoMock-Client.
+const USER_AGENT = `SudoMock-MCP/${PACKAGE_VERSION} (stdio)`;
 // Son savunma suzgeci: API'den donen bir metin motor detayi tasiyorsa yutulur.
 // Desen kodlu tutulur cunku bu depo ve npm paketi PUBLIC; terimlerin kendisi
 // (saglayici adlari, boru hatti kavramlari) listelendiginde suzgec sizintiyi
@@ -47,9 +57,48 @@ function getApiKey(): string {
   return key;
 }
 
+/**
+ * Version of the package this file ships in, read from its package.json.
+ *
+ * The compiled file lives at dist/index.js in the published package and at
+ * .test-build/src/index.js under the test build, so the search climbs from the
+ * module's own directory until it meets a package.json that names this package.
+ */
+function readPackageVersion(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let depth = 0; depth < 5; depth++) {
+    try {
+      const parsed = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as {
+        name?: unknown;
+        version?: unknown;
+      };
+      if (parsed.name === PACKAGE_NAME && typeof parsed.version === "string") {
+        return parsed.version;
+      }
+    } catch {
+      // No package.json at this level; keep climbing.
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return "0.0.0";
+}
+
 // ---------------------------------------------------------------------------
 // HTTP helpers (native fetch)
 // ---------------------------------------------------------------------------
+
+/** A failed API request, tagged with a short kind for the tool-call log. */
+class ApiRequestError extends Error {
+  readonly kind: string;
+
+  constructor(message: string, kind: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.kind = kind;
+  }
+}
 
 interface RequestOptions {
   method: string;
@@ -79,6 +128,7 @@ async function apiRequest({ method, path, params, body, headers: extraHeaders, t
     "x-api-key": apiKey,
     "Content-Type": "application/json",
     "User-Agent": USER_AGENT,
+    "X-SudoMock-Client": CLIENT_ID,
     ...extraHeaders,
   };
 
@@ -95,11 +145,9 @@ async function apiRequest({ method, path, params, body, headers: extraHeaders, t
         signal: controller.signal,
       });
     } catch {
-      throw new Error(
-        controller.signal.aborted
-          ? "SudoMock request timed out. Retry the request."
-          : "Unable to reach SudoMock. Check your connection and retry."
-      );
+      throw controller.signal.aborted
+        ? new ApiRequestError("SudoMock request timed out. Retry the request.", "timeout")
+        : new ApiRequestError("Unable to reach SudoMock. Check your connection and retry.", "network");
     }
 
     if (!resp.ok) {
@@ -114,7 +162,10 @@ async function apiRequest({ method, path, params, body, headers: extraHeaders, t
         500: `SudoMock server error. Try again in a moment.`,
       };
 
-      throw new Error(errorMap[resp.status] ?? `SudoMock request failed (${resp.status}).`);
+      throw new ApiRequestError(
+        errorMap[resp.status] ?? `SudoMock request failed (${resp.status}).`,
+        `http_${resp.status}`
+      );
     }
 
     // 204 No Content
@@ -125,7 +176,7 @@ async function apiRequest({ method, path, params, body, headers: extraHeaders, t
     try {
       return await resp.json();
     } catch {
-      throw new Error("SudoMock returned an unreadable response. Try again.");
+      throw new ApiRequestError("SudoMock returned an unreadable response. Try again.", "bad_response");
     }
   } finally {
     clearTimeout(timer);
@@ -636,13 +687,91 @@ export function isTerminalJob(job: Record<string, unknown>): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Tool-call log (stderr)
+// ---------------------------------------------------------------------------
+//
+// One JSON line per tool call. stdout is the MCP transport, so stderr is the
+// only channel this process may write to; MCP hosts keep it in a log file. The
+// line names the tool, how long it took and whether it succeeded. It carries no
+// arguments, no API key and no response body: a log file is a retained channel.
+
+interface ToolLogLine {
+  event: "mcp_tool_call";
+  ts: string;
+  client: string;
+  tool: string;
+  duration_ms: number;
+  ok: boolean;
+  error_type?: string;
+}
+
+function errorType(error: unknown): string {
+  if (error instanceof ApiRequestError) return error.kind;
+  if (error instanceof Error) return error.name || "Error";
+  return "unknown";
+}
+
+function writeToolLog(line: ToolLogLine): void {
+  try {
+    process.stderr.write(JSON.stringify(line) + "\n");
+  } catch {
+    // A closed stderr must not fail the tool call.
+  }
+}
+
+type ToolCallbackLike = (...args: unknown[]) => unknown;
+
+function withToolLog(tool: string, cb: ToolCallbackLike): ToolCallbackLike {
+  return async (...args: unknown[]) => {
+    const started = performance.now();
+    const base = (): Omit<ToolLogLine, "ok"> => ({
+      event: "mcp_tool_call",
+      ts: new Date().toISOString(),
+      client: CLIENT_ID,
+      tool,
+      duration_ms: Math.round(performance.now() - started),
+    });
+    try {
+      const result = await cb(...args);
+      const failed =
+        typeof result === "object" && result !== null && (result as { isError?: unknown }).isError === true;
+      writeToolLog(failed ? { ...base(), ok: false, error_type: "tool_error" } : { ...base(), ok: true });
+      return result;
+    } catch (error) {
+      writeToolLog({ ...base(), ok: false, error_type: errorType(error) });
+      throw error;
+    }
+  };
+}
+
+/**
+ * Wraps every tool callback registered through `tool()` / `registerTool()` so
+ * each call writes one log line. Both SDK methods take the callback as their
+ * last argument; the registration call sites below stay untouched and typed.
+ */
+function instrumentToolCalls(target: McpServer): void {
+  for (const method of ["tool", "registerTool"] as const) {
+    const original = target[method] as unknown as (...args: unknown[]) => unknown;
+    const wrapped = (...args: unknown[]): unknown => {
+      const last = args.length - 1;
+      if (typeof args[0] === "string" && typeof args[last] === "function") {
+        args[last] = withToolLog(args[0], args[last] as ToolCallbackLike);
+      }
+      return original.apply(target, args);
+    };
+    (target as unknown as Record<string, unknown>)[method] = wrapped;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
 const server = new McpServer({
   name: "SudoMock",
-  version: "2.4.0",
+  version: PACKAGE_VERSION,
 });
+instrumentToolCalls(server);
 
 // ---------------------------------------------------------------------------
 // Tool 1: list_mockups

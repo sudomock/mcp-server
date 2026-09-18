@@ -13,6 +13,10 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
@@ -1011,4 +1015,191 @@ test("isTerminalJob ignores the legacy `state` key (the API returns `status`)", 
   // legacy `state` key must not be read.
   assert.equal(isTerminalJob({ state: "succeeded" }), false);
   assert.deepEqual([...TERMINAL_JOB_STATUSES].sort(), ["failed", "succeeded"]);
+});
+
+// ---------------------------------------------------------------------------
+// Client identity + tool-call log
+// ---------------------------------------------------------------------------
+
+/** The version npm publishes; the test build sits two levels below the package root. */
+const PACKAGE_VERSION = (
+  JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string }
+).version;
+
+interface ToolLogLine {
+  event: string;
+  ts: string;
+  client: string;
+  tool: string;
+  duration_ms: number;
+  ok: boolean;
+  error_type?: string;
+}
+
+/** Capture what the server writes to stderr; only the tool-log lines are parsed. */
+function captureStderr(): { raw: () => string; lines: () => ToolLogLine[]; restore: () => void } {
+  const chunks: string[] = [];
+  const original = process.stderr.write;
+  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+    chunks.push(typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8"));
+    return true;
+  }) as unknown as typeof process.stderr.write;
+  return {
+    raw: () => chunks.join(""),
+    lines: () =>
+      chunks
+        .join("")
+        .split("\n")
+        .filter((line) => line.startsWith('{"event":"mcp_tool_call"'))
+        .map((line) => JSON.parse(line) as ToolLogLine),
+    restore: () => {
+      process.stderr.write = original;
+    },
+  };
+}
+
+test("every API request carries X-SudoMock-Client mcp-stdio/<version> and User-Agent SudoMock-MCP/<version> (stdio)", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const seen: Headers[] = [];
+
+  globalThis.fetch = async (_input, init) => {
+    seen.push(new Headers(init?.headers));
+    return Response.json({ data: [], total: 0 });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  try {
+    assert.match(PACKAGE_VERSION, /^\d+\.\d+\.\d+/);
+    const expected = `mcp-stdio/${PACKAGE_VERSION}`;
+    const expectedUa = `SudoMock-MCP/${PACKAGE_VERSION} (stdio)`;
+
+    // The MCP handshake reports the same version the API sees.
+    assert.equal(client.getServerVersion()?.version, PACKAGE_VERSION);
+
+    await client.callTool({ name: "list_mockups", arguments: { limit: 1 } });
+    await client.callTool({ name: "get_account", arguments: {} });
+
+    assert.equal(seen.length, 2);
+    for (const headers of seen) {
+      assert.equal(headers.get("X-SudoMock-Client"), expected);
+      assert.equal(headers.get("User-Agent"), expectedUa);
+      assert.equal(headers.get("x-api-key"), "sm_test");
+    }
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("each tool call writes one JSON line to stderr that names the tool and outcome, never the key", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  let nextStatus = 200;
+
+  globalThis.fetch = async () => {
+    if (nextStatus !== 200) return new Response("", { status: nextStatus });
+    return Response.json({ data: [{ uuid: "m-1", name: "Tote bag" }], total: 1 });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test_secret_value";
+
+  const stderr = captureStderr();
+  const client = await connectClient();
+  try {
+    // Success.
+    const okResult = await client.callTool({ name: "list_mockups", arguments: { limit: 1, name: "tote" } });
+    assert.notEqual(okResult.isError, true);
+
+    // API failure surfaces as a tool error and is logged with the HTTP status.
+    nextStatus = 401;
+    const failed = await client.callTool({ name: "get_account", arguments: {} });
+    assert.equal(failed.isError, true);
+
+    // A tool that reports its own error result (no API call) is logged as tool_error.
+    const local = await client.callTool({
+      name: "upload_local_file",
+      arguments: { file_path: join(tmpdir(), "sudomock-does-not-exist.psd"), kind: "psd" },
+    });
+    assert.equal(local.isError, true);
+
+    const lines = stderr.lines();
+    assert.equal(lines.length, 3, `expected three log lines, got: ${stderr.raw()}`);
+
+    const [ok, http, tool] = lines;
+    assert.equal(ok.tool, "list_mockups");
+    assert.equal(ok.ok, true);
+    assert.equal(ok.error_type, undefined);
+    assert.equal(ok.client, `mcp-stdio/${PACKAGE_VERSION}`);
+    assert.equal(typeof ok.duration_ms, "number");
+    assert.ok(ok.duration_ms >= 0);
+    assert.ok(!Number.isNaN(Date.parse(ok.ts)));
+
+    assert.equal(http.tool, "get_account");
+    assert.equal(http.ok, false);
+    assert.equal(http.error_type, "http_401");
+
+    assert.equal(tool.tool, "upload_local_file");
+    assert.equal(tool.ok, false);
+    assert.equal(tool.error_type, "tool_error");
+
+    // A log file is a retained channel: no key, no arguments, no response body.
+    const raw = stderr.raw();
+    assert.ok(!raw.includes("sm_test_secret_value"));
+    assert.ok(!raw.includes("tote"));
+    assert.ok(!raw.includes("Tote bag"));
+    assert.ok(!raw.includes("m-1"));
+    assert.ok(!raw.includes("sudomock-does-not-exist"));
+  } finally {
+    stderr.restore();
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("the signed upload PUT carries no API identity headers", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const dir = await mkdtemp(join(tmpdir(), "sudomock-client-header-"));
+  const file = join(dir, "template.psd");
+  await writeFile(file, Buffer.concat([Buffer.from("8BPS"), Buffer.alloc(60)]));
+  const calls: Array<{ url: string; method: string; headers: Headers }> = [];
+
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    calls.push({ url, method: init?.method ?? "GET", headers: new Headers(init?.headers) });
+    if (url.endsWith("/api/v1/uploads/sign")) {
+      return Response.json({
+        data: { upload_url: "https://uploads.example/put?sig=abc", file_url: "https://files.example/template.psd" },
+      });
+    }
+    return new Response(null, { status: 200 });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  try {
+    const result = await client.callTool({ name: "upload_local_file", arguments: { file_path: file, kind: "psd" } });
+    assert.notEqual(result.isError, true);
+
+    const sign = calls.find((c) => c.url.endsWith("/api/v1/uploads/sign"));
+    const put = calls.find((c) => c.method === "PUT");
+    assert.ok(sign && put, "expected a sign request and a PUT");
+    assert.equal(sign.headers.get("X-SudoMock-Client"), `mcp-stdio/${PACKAGE_VERSION}`);
+    assert.equal(put.headers.get("X-SudoMock-Client"), null);
+    assert.equal(put.headers.get("x-api-key"), null);
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+    await rm(dir, { recursive: true, force: true });
+  }
 });
