@@ -147,6 +147,10 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
     assert.deepEqual(render.required, ["mockup_uuid"]);
 
     const webhook = schema("create_webhook_endpoint");
+    // The five photo-mockup events carry two spellings (ADR 2026-09-18): the
+    // family names and the legacy 2d_* names. Both stay subscribable; the
+    // endpoint's event_naming pin decides which one a delivery carries. The
+    // order is the API's own (webhook_schemas.EVENT_TYPES).
     assert.deepEqual(webhook.properties?.event_types.items?.enum, [
       "render.succeeded",
       "render.failed",
@@ -158,8 +162,24 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
       "2d_mockup.failed",
       "2d_render.succeeded",
       "2d_render.failed",
+      "photo_mockup.ready",
+      "photo_mockup.rejected",
+      "photo_mockup.failed",
+      "photo_mockup_render.succeeded",
+      "photo_mockup_render.failed",
       "webhook.test",
     ]);
+    assert.deepEqual(webhook.properties?.event_naming.enum, ["legacy", "current"]);
+    assert.ok(!(webhook.required ?? []).includes("event_naming"));
+    // The same enum feeds update_webhook_endpoint and the deliveries filter.
+    assert.deepEqual(
+      schema("update_webhook_endpoint").properties?.event_types.items?.enum,
+      webhook.properties?.event_types.items?.enum
+    );
+    assert.deepEqual(
+      schema("list_webhook_deliveries").properties?.event_type.enum,
+      webhook.properties?.event_types.items?.enum
+    );
 
     const jobs = schema("list_jobs");
     assert.deepEqual(jobs.properties?.kind.enum, [
@@ -168,6 +188,8 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
       "upload",
       "2d_create",
       "2d_render",
+      "photo_mockup_create",
+      "photo_mockup_render",
     ]);
     for (const name of ["render_2d_surface", "render_2d_print_area"]) {
       assert.ok(!("blend_mode" in (schema(name).properties ?? {})));
@@ -459,6 +481,7 @@ test("read tools project undocumented backend fields out of public results", asy
           id: "endpoint-1",
           url: "https://example.com/hook",
           event_types: ["render.succeeded"],
+          event_naming: "legacy",
           enabled: true,
           private_endpoint_state: "internal",
         },
@@ -497,6 +520,84 @@ test("read tools project undocumented backend fields out of public results", asy
 
     const endpoints = await call("list_webhook_endpoints");
     assert.ok(!("private_endpoint_state" in endpoints[0]));
+    // The pin is public: it is what tells the caller which spelling of the
+    // photo-mockup events this endpoint receives.
+    assert.equal(endpoints[0].event_naming, "legacy");
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("create_webhook_endpoint forwards the event_naming pin and the photo-mockup event names", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const posts: Array<Record<string, unknown>> = [];
+
+  globalThis.fetch = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    assert.equal(path, "/api/v1/webhook-endpoints");
+    assert.equal(init?.method, "POST");
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    posts.push(body);
+    return Response.json({
+      id: "endpoint-9",
+      url: body.url,
+      secret: "whsec_once",
+      description: body.description ?? null,
+      event_types: body.event_types,
+      // The API answers with the pin it stored (its default is 'current').
+      event_naming: body.event_naming ?? "current",
+      enabled: true,
+      created_at: "2026-09-18T00:00:00Z",
+      updated_at: "2026-09-18T00:00:00Z",
+      private_endpoint_state: "internal",
+    });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  try {
+    const call = async (args: Record<string, unknown>) => {
+      const result = await client.callTool({ name: "create_webhook_endpoint", arguments: args });
+      return JSON.parse(
+        (result.content as Array<{ type: "text"; text: string }>)[0].text
+      );
+    };
+
+    // Explicit pin + family names travel as-is.
+    const pinned = await call({
+      url: "https://example.com/hook",
+      event_types: ["photo_mockup.ready", "photo_mockup_render.succeeded"],
+      event_naming: "current",
+    });
+    assert.deepEqual(posts[0], {
+      url: "https://example.com/hook",
+      event_types: ["photo_mockup.ready", "photo_mockup_render.succeeded"],
+      event_naming: "current",
+    });
+    assert.equal(pinned.event_naming, "current");
+    assert.deepEqual(pinned.event_types, ["photo_mockup.ready", "photo_mockup_render.succeeded"]);
+    assert.ok(!("private_endpoint_state" in pinned));
+
+    // A legacy pin is an explicit choice, and the legacy names still pass.
+    await call({
+      url: "https://example.com/hook",
+      event_types: ["2d_render.succeeded"],
+      event_naming: "legacy",
+    });
+    assert.equal(posts[1].event_naming, "legacy");
+    assert.deepEqual(posts[1].event_types, ["2d_render.succeeded"]);
+
+    // Omitted = not sent, so the API's own default ('current') applies rather
+    // than a default this server would have to keep in step with it.
+    const defaulted = await call({ url: "https://example.com/hook" });
+    assert.ok(!("event_naming" in posts[2]));
+    assert.deepEqual(posts[2].event_types, []);
+    assert.equal(defaulted.event_naming, "current");
   } finally {
     await client.close();
     await server.close();
