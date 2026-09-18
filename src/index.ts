@@ -1979,7 +1979,9 @@ server.tool(
 // carries is the endpoint's `event_naming` pin ('current' = family names,
 // 'legacy' = 2d_* names), and the payload's `kind` follows the same pin.
 // Endpoints created before the pin existed are 'legacy'; new endpoints default
-// to 'current' on the API side. The list below is in the API's own order.
+// to 'current' on the API side. The pin is set at create and changed at update;
+// a re-pin sent alone re-spells the stored subscription list to match. The list
+// below is in the API's own order.
 // ---------------------------------------------------------------------------
 
 const WEBHOOK_EVENT_TYPES = [
@@ -2053,7 +2055,7 @@ server.tool(
 
 server.tool(
   "update_webhook_endpoint",
-  "Update a webhook endpoint in place: change its url, description, subscribed event_types, or enable/disable it (enabled:false pauses deliveries without losing the signing secret). All fields optional -- only the ones you pass are changed. The secret is NOT rotated or returned here.",
+  "Update a webhook endpoint in place: change its url, description, subscribed event_types, its event_naming pin, or enable/disable it (enabled:false pauses deliveries without losing the signing secret). All fields optional -- only the ones you pass are changed. The secret is NOT rotated or returned here.",
   {
     endpoint_id: z.string().describe("The id of the webhook endpoint to update (from list_webhook_endpoints)"),
     url: z.string().optional().describe("New https endpoint URL (publicly routable; private/loopback hosts are rejected)"),
@@ -2062,13 +2064,18 @@ server.tool(
       .array(z.enum(WEBHOOK_EVENT_TYPES))
       .optional()
       .describe("Replacement list of subscribed event types. Pass an empty array to subscribe to ALL events."),
+    event_naming: z
+      .enum(WEBHOOK_EVENT_NAMINGS)
+      .optional()
+      .describe("Re-pin which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to keep the endpoint's current pin. Sent on its own, the re-pin re-spells the stored subscription list to match. Move an endpoint to 'current' only once its receiver handles the new names."),
     enabled: z.boolean().optional().describe("Set false to pause deliveries (secret preserved), true to resume"),
   },
-  async ({ endpoint_id, url, description, event_types, enabled }) => {
+  async ({ endpoint_id, url, description, event_types, event_naming, enabled }) => {
     const body: Record<string, unknown> = {};
     if (url !== undefined) body.url = url;
     if (description !== undefined) body.description = description;
     if (event_types !== undefined) body.event_types = event_types;
+    if (event_naming !== undefined) body.event_naming = event_naming;
     if (enabled !== undefined) body.enabled = enabled;
 
     const result = await apiRequest({
