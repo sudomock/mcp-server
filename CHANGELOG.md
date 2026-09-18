@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-09-18
+
 ### Added
 - The photo mockup webhook events are subscribable under their own names:
   `photo_mockup.ready`, `photo_mockup.rejected`, `photo_mockup.failed`,
@@ -15,6 +17,10 @@
   applies. Every endpoint result now carries its `event_naming`, so an
   existing endpoint's pin (`legacy` for endpoints registered before the pin)
   can be read from `list_webhook_endpoints`.
+- `update_webhook_endpoint` takes the same `event_naming`, so an endpoint
+  registered before the family names existed can be moved to them once its
+  receiver is ready. Sent on its own, the re-pin re-spells the endpoint's
+  stored subscription list to match; omitted, the pin is left as it is.
 - `list_jobs` filters by `kind` `photo_mockup_create` / `photo_mockup_render`
   as well as the legacy `2d_create` / `2d_render`; either spelling selects
   both.

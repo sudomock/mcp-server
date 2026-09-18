@@ -180,6 +180,12 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
       schema("list_webhook_deliveries").properties?.event_type.enum,
       webhook.properties?.event_types.items?.enum
     );
+    // The pin is not frozen at registration: update_webhook_endpoint takes the
+    // same optional event_naming, so an endpoint registered before the family
+    // names existed can be moved to them once its receiver is ready.
+    const update = schema("update_webhook_endpoint");
+    assert.deepEqual(update.properties?.event_naming?.enum, ["legacy", "current"]);
+    assert.deepEqual(update.required, ["endpoint_id"]);
 
     const jobs = schema("list_jobs");
     assert.deepEqual(jobs.properties?.kind.enum, [
@@ -598,6 +604,77 @@ test("create_webhook_endpoint forwards the event_naming pin and the photo-mockup
     assert.ok(!("event_naming" in posts[2]));
     assert.deepEqual(posts[2].event_types, []);
     assert.equal(defaulted.event_naming, "current");
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("update_webhook_endpoint forwards the event_naming re-pin and leaves it out when not given", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const patches: Array<Record<string, unknown>> = [];
+  // What the API holds for the endpoint; a PATCH without event_naming leaves
+  // the stored pin alone, so the response keeps echoing it.
+  let storedNaming = "legacy";
+
+  globalThis.fetch = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    assert.equal(path, "/api/v1/webhook-endpoints/endpoint-9");
+    assert.equal(init?.method, "PATCH");
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    patches.push(body);
+    if (typeof body.event_naming === "string") storedNaming = body.event_naming;
+    return Response.json({
+      id: "endpoint-9",
+      url: body.url ?? "https://example.com/hook",
+      secret: "whsec_****ab12",
+      description: body.description ?? null,
+      event_types: body.event_types ?? ["2d_render.succeeded"],
+      event_naming: storedNaming,
+      enabled: body.enabled ?? true,
+      created_at: "2026-09-18T00:00:00Z",
+      updated_at: "2026-09-18T00:00:00Z",
+      private_endpoint_state: "internal",
+    });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  try {
+    const call = async (args: Record<string, unknown>) => {
+      const result = await client.callTool({ name: "update_webhook_endpoint", arguments: args });
+      return JSON.parse(
+        (result.content as Array<{ type: "text"; text: string }>)[0].text
+      );
+    };
+
+    // A re-pin on its own is a valid patch: the body carries only the pin.
+    const repinned = await call({ endpoint_id: "endpoint-9", event_naming: "current" });
+    assert.deepEqual(patches[0], { event_naming: "current" });
+    assert.equal(repinned.event_naming, "current");
+    assert.ok(!("private_endpoint_state" in repinned));
+
+    // Pin and subscription list travel together, spelled as given.
+    await call({
+      endpoint_id: "endpoint-9",
+      event_naming: "legacy",
+      event_types: ["2d_render.succeeded", "render.failed"],
+    });
+    assert.deepEqual(patches[1], {
+      event_naming: "legacy",
+      event_types: ["2d_render.succeeded", "render.failed"],
+    });
+
+    // Omitted = not sent: a patch that only pauses the endpoint must not
+    // touch the pin, and the stored pin comes back unchanged.
+    const paused = await call({ endpoint_id: "endpoint-9", enabled: false });
+    assert.deepEqual(patches[2], { enabled: false });
+    assert.equal(paused.event_naming, "legacy");
+    assert.equal(paused.enabled, false);
   } finally {
     await client.close();
     await server.close();
