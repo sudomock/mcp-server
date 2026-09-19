@@ -6,12 +6,12 @@
     "url": "https://github.com/sudomock/mcp-server",
     "source": "github"
   },
-  "version": "2.6.0",
+  "version": "2.8.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sudomock/mcp",
-      "version": "2.6.0",
+      "version": "2.8.1",
       "transport": {
         "type": "stdio"
       },
