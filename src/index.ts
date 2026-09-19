@@ -748,9 +748,20 @@ function withToolLog(tool: string, cb: ToolCallbackLike): ToolCallbackLike {
 }
 
 /**
+ * What each tool was registered with, keyed by the name it was registered
+ * under. Replaying an entry under a second name publishes the same tool twice
+ * without a second copy of its handler or its input schema, which is how the
+ * family spellings at the bottom of this file are added.
+ */
+const registrations = new Map<string, { method: "tool" | "registerTool"; args: unknown[] }>();
+
+/**
  * Wraps every tool callback registered through `tool()` / `registerTool()` so
- * each call writes one log line. Both SDK methods take the callback as their
- * last argument; the registration call sites below stay untouched and typed.
+ * each call writes one log line, and records the registration on the way past.
+ * Both SDK methods take the callback as their last argument; the registration
+ * call sites below stay untouched and typed. The copy is taken before the
+ * callback is wrapped, so a replay logs under the name it is replayed as
+ * rather than under the name it was first registered with.
  */
 function instrumentToolCalls(target: McpServer): void {
   for (const method of ["tool", "registerTool"] as const) {
@@ -758,6 +769,7 @@ function instrumentToolCalls(target: McpServer): void {
     const wrapped = (...args: unknown[]): unknown => {
       const last = args.length - 1;
       if (typeof args[0] === "string" && typeof args[last] === "function") {
+        registrations.set(args[0], { method, args: [...args] });
         args[last] = withToolLog(args[0], args[last] as ToolCallbackLike);
       }
       return original.apply(target, args);
@@ -1586,7 +1598,7 @@ server.registerTool(
 
 server.tool(
   "list_2d_mockups",
-  "List your saved SudoAI 2D mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits.",
+  "List your saved photo mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits.",
   {
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
@@ -1613,7 +1625,7 @@ server.tool(
 
 server.tool(
   "get_2d_mockup",
-  "Get one SudoAI 2D mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+  "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the 2D mockup (mockup_id from list_2d_mockups)"),
   },
@@ -1681,7 +1693,7 @@ server.tool(
 
 server.tool(
   "delete_2d_mockup",
-  "Permanently delete a SudoAI 2D mockup template and all of its data. Cannot be undone. Costs 0 credits.",
+  "Permanently delete a photo mockup template and all of its data. Cannot be undone. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"),
   },
@@ -2310,6 +2322,181 @@ server.tool(
         text: JSON.stringify({ file_url: fileUrl, bytes: bytes.length, kind }, null, 2),
       }],
     };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Family names, added beside the names above
+// ---------------------------------------------------------------------------
+
+// The product names its two kinds of template PSD mockups and photo mockups,
+// and the tools are spelled that way too. Added, not substituted: a name that
+// shipped once is answered to forever, because a setup written against it is
+// not something we can see from here, and a caller who reached for the family
+// spelling in the window it existed is owed the same. Both spellings are
+// registered, both are supported, and neither is deprecated.
+
+/**
+ * Publish an already-registered tool under a second name.
+ *
+ * The two names share one handler and one input schema: the registration
+ * arguments are replayed with a different name, so there is no second copy to
+ * keep in step and no way for the two to drift apart. The original
+ * registration is not touched, including its description.
+ */
+function alsoRegisterAs(existing: string, familyName: string): void {
+  const source = registrations.get(existing);
+  if (source === undefined || source.method !== "tool") {
+    throw new Error(`Cannot publish ${familyName}: ${existing} has no replayable registration.`);
+  }
+  const [, description, ...rest] = source.args;
+  if (typeof description !== "string") {
+    throw new Error(
+      `Cannot publish ${familyName}: ${existing} was registered without a description, ` +
+        "so replaying its arguments would drop the input schema and take any argument."
+    );
+  }
+  (server.tool as unknown as (...args: unknown[]) => unknown)(
+    familyName,
+    `${description} Family-name spelling of ${existing}: one tool under two names, same arguments, same behavior. Either name works.`,
+    ...rest
+  );
+}
+
+for (const [existing, familyName] of [
+  // PSD mockups.
+  ["list_mockups", "list_psd_mockups"],
+  ["get_mockup_details", "get_psd_mockup"],
+  ["update_mockup", "update_psd_mockup"],
+  ["delete_mockup", "delete_psd_mockup"],
+  ["render_mockup", "render_psd_mockup"],
+  // Photo mockups.
+  ["create_2d_mockup", "create_photo_mockup"],
+  ["list_2d_mockups", "list_photo_mockups"],
+  ["get_2d_mockup", "get_photo_mockup"],
+  ["update_2d_print_areas", "update_photo_mockup_print_areas"],
+  ["delete_2d_mockup", "delete_photo_mockup"],
+] as const) {
+  alsoRegisterAs(existing, familyName);
+}
+
+// ---------------------------------------------------------------------------
+// Tool: render_photo_mockup
+// ---------------------------------------------------------------------------
+
+// The one family name that is not a second name for a single tool. Under the
+// 2D spelling a render picks its target by picking a tool; under the family
+// spelling one tool takes both kinds and the target is an argument, which is
+// the shape this name was published with. It is a dispatcher and nothing more:
+// the sizing rules, the refusals and the request itself are the same functions
+// `render_2d_surface` and `render_2d_print_area` call, so there is one
+// implementation of a 2D render on this side no matter which name reaches it.
+
+const ONE_TARGET = "Provide exactly one of print_area_uuid or surface_uuid";
+
+// Every shared field belongs to this tool too; only the mockup's own argument
+// is spelled differently, as `mockup_id` -- the name this tool was published
+// with, and the name the photo mockup tools return the id under.
+const { mockup_uuid: _twoDMockupUuid, ...PHOTO_RENDER_SHARED } = TWO_D_SHARED;
+
+const renderPhotoMockupInput = z.strictObject(
+  {
+    mockup_id: z
+      .string()
+      .describe("UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup)."),
+    ...PHOTO_RENDER_SHARED,
+    print_area_uuid: z
+      .string()
+      .optional()
+      .describe(
+        "UUID of a saved print area from get_photo_mockup's print_areas[] (its print_area_id): a bounded zone somebody drew on the product, such as a chest logo. Omit when surface_uuid is used."
+      ),
+    surface_uuid: z
+      .string()
+      .optional()
+      .describe(
+        "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used."
+      ),
+    coverage: z
+      .number()
+      .min(10)
+      .max(100)
+      .optional()
+      .describe(
+        "How much of the surface the artwork spans, as a percentage (10-100). Belongs to surface_uuid; sending it with print_area_uuid is refused. Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size."
+      ),
+    fit: z
+      .enum(["contain", "fill", "cover"])
+      .optional()
+      .describe(
+        "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead."
+      ),
+    // A percentage cannot express a box whose proportions differ from the
+    // target's, which is exactly what an artwork resized on a canvas is, so
+    // the exact box belongs to both kinds of target.
+    width: z
+      .number()
+      .min(1)
+      .max(30000)
+      .optional()
+      .describe(
+        "Artwork width in pixels, drawn at that exact size instead of by coverage or fit. Send together with height, and without coverage or fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement."
+      ),
+    height: z
+      .number()
+      .min(1)
+      .max(30000)
+      .optional()
+      .describe(
+        "Artwork height in pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you."
+      ),
+  },
+  {
+    error: (issue) => {
+      if (issue.code !== "unrecognized_keys") return undefined;
+      return issue.keys
+        .map((key) =>
+          key === "scale"
+            ? RETIRED_SCALE
+            : `${key} is not an option on this tool. Send only the options it lists.`
+        )
+        .join(" ");
+    },
+  }
+);
+
+server.registerTool(
+  "render_photo_mockup",
+  {
+    description:
+      "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_photo_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Family-name spelling of render_2d_surface and render_2d_print_area, which stay available and behave exactly as they did. Use the dashboard for visual fine-tuning.",
+    inputSchema: renderPhotoMockupInput,
+  },
+  async (args) => {
+    const hasPrintArea = args.print_area_uuid !== undefined;
+    const hasSurface = args.surface_uuid !== undefined;
+    if (hasPrintArea === hasSurface) throw new Error(ONE_TARGET);
+    // The dial of the other kind of target is refused by name, in the words
+    // the tool that owns that dial already refuses it with. Refusing is keyed
+    // on the argument being written rather than on the value it holds: writing
+    // it is the caller naming the option.
+    if (hasSurface && args.fit !== undefined) throw new Error(TWO_D_REFUSED_OPTIONS.surface.fit);
+    if (hasPrintArea && args.coverage !== undefined) {
+      throw new Error(TWO_D_REFUSED_OPTIONS.print_area.coverage);
+    }
+
+    const sizing = {
+      ...(args.coverage === undefined ? {} : { coverage: args.coverage }),
+      ...(args.fit === undefined ? {} : { fit: args.fit }),
+      ...(args.width === undefined ? {} : { width: args.width }),
+      ...(args.height === undefined ? {} : { height: args.height }),
+    };
+    assertOneSizingAnswer(sizing, hasSurface ? "coverage" : "fit");
+    return renderTwoD(
+      { ...args, mockup_uuid: args.mockup_id },
+      hasSurface ? { surface_uuid: args.surface_uuid } : { uuid: args.print_area_uuid },
+      sizing
+    );
   }
 );
 

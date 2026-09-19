@@ -71,6 +71,34 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `list_webhook_deliveries` | List delivery attempts for an endpoint | 0 |
 | `replay_webhook_delivery` | Replay a single failed delivery | 0 |
 
+### Both spellings work
+
+The product calls its two kinds of template PSD mockups and photo mockups, and
+the tools answer to those names too. Nothing above was renamed: every name in
+the table keeps working exactly as it always has, and the spelling beside it is
+the same tool with the same arguments. Reach for either.
+
+| Name in the table | Also answers to |
+|------|------|
+| `list_mockups` | `list_psd_mockups` |
+| `get_mockup_details` | `get_psd_mockup` |
+| `update_mockup` | `update_psd_mockup` |
+| `delete_mockup` | `delete_psd_mockup` |
+| `render_mockup` | `render_psd_mockup` |
+| `create_2d_mockup` | `create_photo_mockup` |
+| `list_2d_mockups` | `list_photo_mockups` |
+| `get_2d_mockup` | `get_photo_mockup` |
+| `update_2d_print_areas` | `update_photo_mockup_print_areas` |
+| `delete_2d_mockup` | `delete_photo_mockup` |
+| `render_2d_surface`, `render_2d_print_area` | `render_photo_mockup` |
+
+`render_photo_mockup` is the one that is not simply a second name for a single
+tool. It renders either kind of target from one tool: pass the mockup as
+`mockup_id` and name exactly one of `surface_uuid` (sized by `coverage` or an
+explicit `width` + `height`) or `print_area_uuid` (sized by `fit` or an
+explicit `width` + `height`). Picking the target by picking a tool, with
+`mockup_uuid`, is what `render_2d_surface` and `render_2d_print_area` still do.
+
 ### Async jobs
 
 `render_mockup`, `upload_psd`, `create_2d_mockup`, and both 2D render tools
