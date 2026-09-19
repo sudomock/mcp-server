@@ -33,7 +33,7 @@ jobs:
           if npm view "$N@$V" version >/dev/null 2>&1; then
             echo "npm: $N@$V zaten yayinda, atlaniyor"
           else
-            npm publish --provenance --access public
+            npm publish --provenance --access public --tag latest
           fi
       - name: Sync server.json version from package.json
         # server.json'un kendi `version` alani ikinci bir kopyaydi: 2.5.0
