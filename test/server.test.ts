@@ -36,19 +36,18 @@ async function connectClient(): Promise<Client> {
 }
 
 const EXPECTED_TOOLS = [
-  "list_mockups",
-  "get_mockup_details",
-  "update_mockup",
-  "delete_mockup",
-  "create_2d_mockup",
-  "render_mockup",
+  "list_psd_mockups",
+  "get_psd_mockup",
+  "update_psd_mockup",
+  "delete_psd_mockup",
+  "render_psd_mockup",
   "remove_background",
-  "render_2d_surface",
-  "render_2d_print_area",
-  "list_2d_mockups",
-  "get_2d_mockup",
-  "update_2d_print_areas",
-  "delete_2d_mockup",
+  "create_photo_mockup",
+  "render_photo_mockup",
+  "list_photo_mockups",
+  "get_photo_mockup",
+  "update_photo_mockup_print_areas",
+  "delete_photo_mockup",
   "upload_psd",
   "get_job",
   "list_jobs",
@@ -66,6 +65,31 @@ const EXPECTED_TOOLS = [
   "upload_local_file",
 ];
 
+// The 2.x names. 3.0 is a clean cut: no alias answers to any of them, so a
+// client written against 2.x fails loudly at "tool not found" instead of
+// being quietly redirected to a tool whose arguments have changed.
+const RETIRED_TOOLS = [
+  "list_mockups",
+  "get_mockup_details",
+  "update_mockup",
+  "delete_mockup",
+  "render_mockup",
+  "create_2d_mockup",
+  "render_2d_mockup",
+  "render_2d_surface",
+  "render_2d_print_area",
+  "list_2d_mockups",
+  "get_2d_mockup",
+  "update_2d_print_areas",
+  "delete_2d_mockup",
+  "create_studio_session",
+];
+
+/** The first text block of a tool result. */
+function firstText(result: unknown): string {
+  return (result as { content: Array<{ type: "text"; text: string }> }).content[0].text;
+}
+
 test("registers every expected tool with a description + object input schema", async () => {
   const client = await connectClient();
   try {
@@ -75,7 +99,10 @@ test("registers every expected tool with a description + object input schema", a
     for (const expected of EXPECTED_TOOLS) {
       assert.ok(names.includes(expected), `missing tool: ${expected}`);
     }
-    assert.ok(!names.includes("create_studio_session"));
+    for (const retired of RETIRED_TOOLS) {
+      assert.ok(!names.includes(retired), `retired tool still registered: ${retired}`);
+    }
+    assert.equal(names.length, EXPECTED_TOOLS.length);
 
     for (const tool of tools) {
       assert.equal(typeof tool.description, "string", `${tool.name} has no description`);
@@ -83,7 +110,7 @@ test("registers every expected tool with a description + object input schema", a
       assert.equal(tool.inputSchema.type, "object", `${tool.name} input schema is not an object`);
     }
 
-    const create2D = tools.find((tool) => tool.name === "create_2d_mockup");
+    const create2D = tools.find((tool) => tool.name === "create_photo_mockup");
     const create2DProps = create2D?.inputSchema.properties ?? {};
     assert.ok("idempotency_key" in create2DProps);
     assert.ok(!("source_base64" in create2DProps));
@@ -138,7 +165,7 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
       return tool.inputSchema as Schema;
     };
 
-    const render = schema("render_mockup");
+    const render = schema("render_psd_mockup");
     const renderProps = render.properties ?? {};
     assert.ok("smart_objects" in renderProps);
     assert.ok("text_layers" in renderProps);
@@ -197,43 +224,28 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
       "photo_mockup_create",
       "photo_mockup_render",
     ]);
-    for (const name of ["render_2d_surface", "render_2d_print_area"]) {
-      assert.ok(!("blend_mode" in (schema(name).properties ?? {})));
+    // One photo render tool, shaped like the hosted server's: the target is
+    // exactly one of print_area_uuid or surface_uuid, and the sizing dials of
+    // both target kinds sit on the same schema. Which dial belongs to which
+    // target is settled in the handler, by name, with the sentence that sends
+    // the caller to the option that works (exercised further down).
+    const photoRender = schema("render_photo_mockup");
+    const photoProps = photoRender.properties ?? {};
+    assert.ok(!("blend_mode" in photoProps));
+    assert.ok(!("mockup_uuid" in photoProps));
+    assert.deepEqual(photoRender.required, ["mockup_id", "artwork_url"]);
+    for (const present of ["print_area_uuid", "surface_uuid", "coverage", "fit", "width", "height"]) {
+      assert.ok(present in photoProps, `render_photo_mockup is missing ${present}`);
     }
-    // The RELATIVE dials do not cross, and only those. A surface is sized
-    // relative to itself by a percentage, a print area relative to its bounds
-    // by a fit, and neither reads on the other -- which is the whole reason
-    // there are two tools.
-    //
-    // An exact box in pixels is not relative to anything, so it belongs to
-    // both. It used to be listed here as print-area-only; the shared placement
-    // wire fixture accepts `surface_explicit_box` and says why: a percentage
-    // cannot express a box whose proportions differ from the surface, and
-    // refusing it made every all-over print somebody had resized on a canvas
-    // unsendable. See test/placement-wire.test.ts, which reads that fixture.
-    const surfaceProps = schema("render_2d_surface").properties ?? {};
-    const areaProps = schema("render_2d_print_area").properties ?? {};
-    assert.ok("coverage" in surfaceProps);
-    for (const absent of ["fit", "print_area_uuid"]) {
-      assert.ok(!(absent in surfaceProps), `render_2d_surface offers ${absent}`);
+    // Anchoring and sizing carry no client-side default: an option the caller
+    // never names must not reach the wire. The renderer owns the answer.
+    for (const dial of ["position", "offset_x", "offset_y", "rotation", "coverage", "fit", "width", "height"]) {
+      assert.equal(photoProps[dial].default, undefined, `${dial} carries a client-side default`);
     }
-    for (const present of ["fit", "width", "height"]) {
-      assert.ok(present in areaProps, `render_2d_print_area is missing ${present}`);
-    }
-    for (const present of ["width", "height"]) {
-      assert.ok(present in surfaceProps, `render_2d_surface is missing ${present}`);
-    }
-    for (const absent of ["coverage", "surface_uuid"]) {
-      assert.ok(!(absent in areaProps), `render_2d_print_area offers ${absent}`);
-    }
-    // Anchoring is shared and, like sizing, carries no client-side default:
-    // an option the caller never names must not reach the wire.
-    for (const props of [surfaceProps, areaProps]) {
-      for (const anchor of ["position", "offset_x", "offset_y", "rotation"]) {
-        assert.ok(anchor in props, `a render tool is missing ${anchor}`);
-        assert.equal(props[anchor].default, undefined, `${anchor} carries a client-side default`);
-      }
-    }
+    // Export defaults are this package's own and stay where 2.x had them.
+    assert.equal(photoProps.quality.default, 90);
+    assert.equal(photoProps.image_size.default, 2048);
+    assert.equal(photoProps.image_format.default, "webp");
     const video = schema("render_video");
     assert.ok(!("advanced_model" in (video.properties ?? {})));
 
@@ -271,7 +283,7 @@ test("render tools pass the new inputs without adding group_layers", async () =>
   const client = await connectClient();
   try {
     await client.callTool({
-      name: "render_mockup",
+      name: "render_psd_mockup",
       arguments: {
         mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
         smart_objects: [
@@ -293,7 +305,7 @@ test("render tools pass the new inputs without adding group_layers", async () =>
       },
     });
     await client.callTool({
-      name: "render_mockup",
+      name: "render_psd_mockup",
       arguments: {
         mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
         text_layers: [
@@ -305,7 +317,7 @@ test("render tools pass the new inputs without adding group_layers", async () =>
       },
     });
     await client.callTool({
-      name: "render_mockup",
+      name: "render_psd_mockup",
       arguments: {
         mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
         smart_object_uuid: "223e4567-e89b-12d3-a456-426614174001",
@@ -336,7 +348,7 @@ test("render tools pass the new inputs without adding group_layers", async () =>
   }
 });
 
-test("render_mockup returns only public output fields and safe warnings", async () => {
+test("render_psd_mockup returns only public output fields and safe warnings", async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.SUDOMOCK_API_KEY;
 
@@ -369,7 +381,7 @@ test("render_mockup returns only public output fields and safe warnings", async 
   const client = await connectClient();
   try {
     const result = await client.callTool({
-      name: "render_mockup",
+      name: "render_psd_mockup",
       arguments: {
         mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
         smart_object_uuid: "223e4567-e89b-12d3-a456-426614174001",
@@ -434,13 +446,13 @@ test("read tools project undocumented backend fields out of public results", asy
 
   globalThis.fetch = async (input) => {
     const path = new URL(String(input)).pathname;
-    if (path === "/api/v1/mockups") {
+    if (path === "/api/v1/psd-mockups") {
       return Response.json({
         success: true,
         data: { mockups: [mockup], total: 1, limit: 20, offset: 0 },
       });
     }
-    if (path === "/api/v1/mockups/mockup-123") {
+    if (path === "/api/v1/psd-mockups/mockup-123") {
       return Response.json({ success: true, data: mockup });
     }
     if (path === "/api/v1/remove-background") {
@@ -506,12 +518,12 @@ test("read tools project undocumented backend fields out of public results", asy
       );
     };
 
-    const list = await call("list_mockups");
+    const list = await call("list_psd_mockups");
     assert.equal(list.data.mockups[0].uuid, "mockup-123");
     assert.ok(!("model" in list.data.mockups[0]));
     assert.ok(!("mask_uuid" in list.data.mockups[0].smart_objects[0]));
 
-    const detail = await call("get_mockup_details", {
+    const detail = await call("get_psd_mockup", {
       mockup_uuid: "mockup-123",
     });
     assert.ok(!("model" in detail.data));
@@ -705,7 +717,7 @@ test("background removal: standalone tool + opt-in flag at the right body level"
       arguments: { image_url: "https://example.com/photo.jpg" },
     });
     await client.callTool({
-      name: "render_mockup",
+      name: "render_psd_mockup",
       arguments: {
         mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
         smart_object_uuid: "223e4567-e89b-12d3-a456-426614174001",
@@ -714,7 +726,7 @@ test("background removal: standalone tool + opt-in flag at the right body level"
       },
     });
     await client.callTool({
-      name: "render_mockup",
+      name: "render_psd_mockup",
       arguments: {
         mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
         smart_object_uuid: "223e4567-e89b-12d3-a456-426614174001",
@@ -722,18 +734,18 @@ test("background removal: standalone tool + opt-in flag at the right body level"
       },
     });
     await client.callTool({
-      name: "render_2d_print_area",
+      name: "render_photo_mockup",
       arguments: {
-        mockup_uuid: "mockup-123",
+        mockup_id: "mockup-123",
         print_area_uuid: "area-1",
         artwork_url: "https://example.com/photo.jpg",
         remove_background: true,
       },
     });
     await client.callTool({
-      name: "render_2d_print_area",
+      name: "render_photo_mockup",
       arguments: {
-        mockup_uuid: "mockup-123",
+        mockup_id: "mockup-123",
         print_area_uuid: "area-1",
         artwork_url: "https://example.com/photo.jpg",
       },
@@ -753,7 +765,7 @@ test("background removal: standalone tool + opt-in flag at the right body level"
     )[0].asset;
     assert.ok(!("remove_background" in defaultAsset));
 
-    // 2D render: the flag rides on the PRINT AREA, not adjustments/placement.
+    // Photo render: the flag rides on the PRINT AREA, not adjustments/placement.
     const printArea = (
       requests[3].body.print_areas as Array<{
         remove_background?: boolean;
@@ -787,7 +799,7 @@ test("background removal: standalone tool + opt-in flag at the right body level"
   }
 });
 
-test("2D create is sync-default (201) and every 2D path is plural + black-box", async () => {
+test("photo mockup create is sync-default (201) and every photo path is the family path + black-box", async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.SUDOMOCK_API_KEY;
   const quad = [[10, 20], [110, 20], [110, 120], [10, 120]];
@@ -798,7 +810,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     const url = String(input);
     const method = init?.method ?? "GET";
 
-    if (method === "POST" && url.endsWith("/api/v1/sudoai/2d-mockups")) {
+    if (method === "POST" && url.endsWith("/api/v1/photo-mockups")) {
       const body = JSON.parse(String(init?.body));
       const headers = new Headers(init?.headers);
       const idempotencyKey = headers.get("Idempotency-Key") ?? "";
@@ -810,12 +822,13 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       assert.ok(!idempotencyKeys.has(idempotencyKey), "create calls must use unique idempotency keys");
       idempotencyKeys.add(idempotencyKey);
 
-      // is_async=true -> 202 + job_id (poll path preserved).
+      // is_async=true -> 202 + job_id (poll path preserved). The family path
+      // stamps the family kind.
       if (body.is_async === true) {
         return new Response(
           JSON.stringify({
             job_id: "job-async",
-            kind: "2d_create",
+            kind: "photo_mockup_create",
             status: "queued",
             status_url: "/api/v1/jobs/job-async",
           }),
@@ -850,7 +863,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       );
     }
 
-    if (method === "GET" && url.endsWith("/api/v1/sudoai/2d-mockups/mockup-123")) {
+    if (method === "GET" && url.endsWith("/api/v1/photo-mockups/mockup-123")) {
       return Response.json({
         data: {
           mockup_id: "mockup-123",
@@ -869,7 +882,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       });
     }
 
-    if (method === "GET" && new URL(url).pathname === "/api/v1/sudoai/2d-mockups") {
+    if (method === "GET" && new URL(url).pathname === "/api/v1/photo-mockups") {
       assert.equal(new URL(url).searchParams.get("customizable_only"), "true");
       return Response.json({
         data: [{
@@ -885,22 +898,23 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       });
     }
 
-    if (method === "POST" && url.endsWith("/api/v1/sudoai/2d-mockups/mockup-123/render")) {
+    if (method === "POST" && url.endsWith("/api/v1/photo-mockups/mockup-123/render")) {
       const body = JSON.parse(String(init?.body));
       renderBodies.push(body);
       // render carries the mockup id in the PATH, never in the body.
       assert.ok(!("mockup_uuid" in body), "render body must not carry mockup_uuid");
+      assert.ok(!("mockup_id" in body), "render body must not carry mockup_id");
       assert.ok(
         body.print_areas[0].uuid === "area-1"
         || body.print_areas[0].surface_uuid === "surface-1"
       );
       assert.ok(!("mockup_uuid" in body.print_areas[0]));
-      // is_async=true -> 202 + job_id (kind "2d_render"), poll path preserved.
+      // is_async=true -> 202 + job_id (family kind), poll path preserved.
       if (body.is_async === true) {
         return new Response(
           JSON.stringify({
             job_id: "render-job-async",
-            kind: "2d_render",
+            kind: "photo_mockup_render",
             status: "queued",
             status_url: "/api/v1/jobs/render-job-async",
           }),
@@ -916,7 +930,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       });
     }
 
-    if (method === "PUT" && url.endsWith("/api/v1/sudoai/2d-mockups/mockup-123/print-areas")) {
+    if (method === "PUT" && url.endsWith("/api/v1/photo-mockups/mockup-123/print-areas")) {
       const body = JSON.parse(String(init?.body));
       if (body.print_areas.length > 0) {
         assert.deepEqual(body.print_areas, [{ points: quad, name: "Front" }]);
@@ -939,7 +953,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
   try {
     // Sync-default create returns the mockup directly (201), no poll.
     const createdResult = await client.callTool({
-      name: "create_2d_mockup",
+      name: "create_photo_mockup",
       arguments: {
         source_url: "https://example.com/product.jpg",
         name: "Product",
@@ -960,7 +974,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.deepEqual(created.surfaces, [{ surface_uuid: "surface-1" }]);
 
     const detailsResult = await client.callTool({
-      name: "get_2d_mockup",
+      name: "get_photo_mockup",
       arguments: { mockup_id: "mockup-123" },
     });
     const details = JSON.parse(
@@ -971,7 +985,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.ok(!("quads" in details.data));
 
     const listResult = await client.callTool({
-      name: "list_2d_mockups",
+      name: "list_photo_mockups",
       arguments: { customizable_only: true },
     });
     const listing = JSON.parse(
@@ -981,7 +995,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
 
     // Unsuitable image -> error body -> tool surfaces an error result.
     const rejectedResult = await client.callTool({
-      name: "create_2d_mockup",
+      name: "create_photo_mockup",
       arguments: { source_url: "https://example.com/unsuitable.jpg" },
     });
     assert.equal(rejectedResult.isError, true);
@@ -990,14 +1004,14 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.doesNotMatch(rejectedText, /not suitable for mockup generation/);
 
     const missingSource = await client.callTool({
-      name: "create_2d_mockup",
+      name: "create_photo_mockup",
       arguments: {},
     });
     assert.equal(missingSource.isError, true);
 
     // is_async=true still returns the job-accepted contract.
     const asyncResult = await client.callTool({
-      name: "create_2d_mockup",
+      name: "create_photo_mockup",
       arguments: {
         source_url: "https://example.com/async.jpg",
         idempotency_key: "catalog-import-42",
@@ -1011,11 +1025,11 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.equal(asyncJob.job_id, "job-async");
     assert.equal(asyncJob.status_url, "/api/v1/jobs/job-async");
 
-    // render posts to the plural path with the id in the path + print_files/render_uuid back.
+    // render posts to the family path with the id in the path + print_files/render_uuid back.
     const renderResult = await client.callTool({
-      name: "render_2d_print_area",
+      name: "render_photo_mockup",
       arguments: {
-        mockup_uuid: "mockup-123",
+        mockup_id: "mockup-123",
         print_area_uuid: "area-1",
         artwork_url: "https://example.com/art.png",
       },
@@ -1026,44 +1040,101 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.equal(rendered.data.render_uuid, "render-1");
     assert.equal(rendered.data.print_files[0].export_path, "/renders/out.webp");
 
+    // A surface target travels as surface_uuid, with its own sizing dial.
     await client.callTool({
-      name: "render_2d_surface",
+      name: "render_photo_mockup",
       arguments: {
-        mockup_uuid: "mockup-123",
+        mockup_id: "mockup-123",
         surface_uuid: "surface-1",
         artwork_url: "https://example.com/art.png",
+        coverage: 60,
       },
     });
-    assert.equal(
-      (renderBodies.at(-1)?.print_areas as Array<Record<string, unknown>>)[0]?.surface_uuid,
-      "surface-1"
-    );
-    assert.ok(
-      !("uuid" in (renderBodies.at(-1)?.print_areas as Array<Record<string, unknown>>)[0])
-    );
-    // Naming two targets at once is no longer something a caller can express:
-    // there is no tool that takes both fields. What is still refusable is
-    // naming none, and each tool refuses that on its own behalf.
-    assert.equal((await client.callTool({
-      name: "render_2d_print_area",
+    const surfaceEntry = (renderBodies.at(-1)?.print_areas as Array<Record<string, unknown>>)[0];
+    assert.equal(surfaceEntry.surface_uuid, "surface-1");
+    assert.ok(!("uuid" in surfaceEntry));
+    assert.deepEqual(surfaceEntry.placement, { coverage: 60 });
+
+    // A print area target travels as uuid; fit, or an exact box, sizes it.
+    await client.callTool({
+      name: "render_photo_mockup",
       arguments: {
-        mockup_uuid: "mockup-123",
+        mockup_id: "mockup-123",
+        print_area_uuid: "area-1",
         artwork_url: "https://example.com/art.png",
+        fit: "cover",
+        position: "top_left",
       },
-    })).isError, true);
-    assert.equal((await client.callTool({
-      name: "render_2d_surface",
+    });
+    assert.deepEqual(
+      (renderBodies.at(-1)?.print_areas as Array<Record<string, unknown>>)[0].placement,
+      { position: "top_left", fit: "cover" }
+    );
+    await client.callTool({
+      name: "render_photo_mockup",
       arguments: {
-        mockup_uuid: "mockup-123",
+        mockup_id: "mockup-123",
+        print_area_uuid: "area-1",
         artwork_url: "https://example.com/art.png",
+        width: 300,
+        height: 120,
       },
-    })).isError, true);
+    });
+    assert.deepEqual(
+      (renderBodies.at(-1)?.print_areas as Array<Record<string, unknown>>)[0].placement,
+      { width: 300, height: 120 }
+    );
+
+    // The target is named exactly once. Both fields at once and neither are
+    // refused before anything reaches the wire, with the hosted server's
+    // sentence.
+    const sentBefore = renderBodies.length;
+    const refuse = async (args: Record<string, unknown>) => {
+      const result = await client.callTool({
+        name: "render_photo_mockup",
+        arguments: { mockup_id: "mockup-123", artwork_url: "https://example.com/art.png", ...args },
+      });
+      assert.equal(result.isError, true, `expected a refusal for ${JSON.stringify(args)}`);
+      return firstText(result);
+    };
+    assert.match(
+      await refuse({ print_area_uuid: "area-1", surface_uuid: "surface-1" }),
+      /Provide exactly one of print_area_uuid or surface_uuid/
+    );
+    assert.match(await refuse({}), /Provide exactly one of print_area_uuid or surface_uuid/);
+    // The sizing dial of the other kind of target is refused by name, with
+    // the sentence that sends the caller to the option that works. Dropping
+    // it instead would render a size the caller never asked for in silence.
+    assert.match(
+      await refuse({ surface_uuid: "surface-1", fit: "contain" }),
+      /A surface covers the whole product, so fit has nothing to fit against/
+    );
+    assert.match(
+      await refuse({ print_area_uuid: "area-1", coverage: 50 }),
+      /coverage has no meaning on one/
+    );
+    // The retired scale is still refused by name rather than dropped.
+    assert.match(await refuse({ print_area_uuid: "area-1", scale: 2 }), /scale has been retired/);
+    // Half a size, and two sizing answers at once, never reach the wire.
+    assert.match(
+      await refuse({ print_area_uuid: "area-1", width: 300 }),
+      /width and height must be provided together/
+    );
+    assert.match(
+      await refuse({ surface_uuid: "surface-1", coverage: 60, width: 300, height: 120 }),
+      /coverage and an explicit width and height/
+    );
+    assert.match(
+      await refuse({ print_area_uuid: "area-1", fit: "fill", width: 300, height: 120 }),
+      /fit and an explicit width and height/
+    );
+    assert.equal(renderBodies.length, sentBefore);
 
     // render is_async=true returns the job-accepted contract (mirrors create).
     const asyncRenderResult = await client.callTool({
-      name: "render_2d_print_area",
+      name: "render_photo_mockup",
       arguments: {
-        mockup_uuid: "mockup-123",
+        mockup_id: "mockup-123",
         print_area_uuid: "area-1",
         artwork_url: "https://example.com/art.png",
         is_async: true,
@@ -1074,11 +1145,11 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     );
     assert.equal(asyncRender.accepted, true);
     assert.equal(asyncRender.job_id, "render-job-async");
-    assert.equal(asyncRender.kind, "2d_render");
+    assert.equal(asyncRender.kind, "photo_mockup_render");
     assert.equal(asyncRender.status_url, "/api/v1/jobs/render-job-async");
 
     const updatedResult = await client.callTool({
-      name: "update_2d_print_areas",
+      name: "update_photo_mockup_print_areas",
       arguments: { mockup_id: "mockup-123", print_areas: [{ points: quad, name: "Front" }] },
     });
     const updated = JSON.parse(
@@ -1088,7 +1159,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     assert.equal(updated.data.print_areas[0].name, "Front");
 
     const emptiedResult = await client.callTool({
-      name: "update_2d_print_areas",
+      name: "update_photo_mockup_print_areas",
       arguments: { mockup_id: "mockup-123", print_areas: [] },
     });
     const emptied = JSON.parse(
@@ -1183,6 +1254,7 @@ test("formatJobAccepted does NOT fall back to mockup_uuid for the job id", () =>
 test("isTerminalJob detects terminal statuses via the `status` field", () => {
   assert.equal(isTerminalJob({ status: "succeeded" }), true);
   assert.equal(isTerminalJob({ status: "failed" }), true);
+  assert.equal(isTerminalJob({ status: "cancelled" }), true);
   assert.equal(isTerminalJob({ status: "queued" }), false);
   assert.equal(isTerminalJob({ status: "running" }), false);
   assert.equal(isTerminalJob({}), false);
@@ -1192,7 +1264,43 @@ test("isTerminalJob ignores the legacy `state` key (the API returns `status`)", 
   // The poll endpoint (GET /api/v1/jobs/{id}) only ever returns `status`; a stray
   // legacy `state` key must not be read.
   assert.equal(isTerminalJob({ state: "succeeded" }), false);
-  assert.deepEqual([...TERMINAL_JOB_STATUSES].sort(), ["failed", "succeeded"]);
+  assert.deepEqual([...TERMINAL_JOB_STATUSES].sort(), ["cancelled", "failed", "succeeded"]);
+});
+
+test("wait_for_job returns at once on a cancelled job instead of polling to the deadline", async () => {
+  // The API marks a job `cancelled` as a terminal state, next to succeeded and
+  // failed (the hosted server treats it the same). A wait that did not know
+  // the word would poll a finished job until timeout_seconds and hand back a
+  // timed_out envelope for work that is over.
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  let polls = 0;
+  globalThis.fetch = async () => {
+    polls += 1;
+    return Response.json({ job_id: "job-cancelled", kind: "render", status: "cancelled" });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  try {
+    const started = Date.now();
+    const result = await client.callTool({
+      name: "wait_for_job",
+      arguments: { job_id: "job-cancelled", poll_interval_seconds: 1, timeout_seconds: 5 },
+    });
+    const job = JSON.parse((result.content as Array<{ type: "text"; text: string }>)[0].text);
+    assert.equal(job.timed_out, undefined);
+    assert.equal(job.status, "cancelled");
+    assert.equal(job.job_id, "job-cancelled");
+    assert.equal(polls, 1);
+    assert.ok(Date.now() - started < 1000, "returned without sleeping a poll interval");
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -1256,7 +1364,7 @@ test("every API request carries X-SudoMock-Client mcp-stdio/<version> and User-A
     // The MCP handshake reports the same version the API sees.
     assert.equal(client.getServerVersion()?.version, PACKAGE_VERSION);
 
-    await client.callTool({ name: "list_mockups", arguments: { limit: 1 } });
+    await client.callTool({ name: "list_psd_mockups", arguments: { limit: 1 } });
     await client.callTool({ name: "get_account", arguments: {} });
 
     assert.equal(seen.length, 2);
@@ -1289,7 +1397,7 @@ test("each tool call writes one JSON line to stderr that names the tool and outc
   const client = await connectClient();
   try {
     // Success.
-    const okResult = await client.callTool({ name: "list_mockups", arguments: { limit: 1, name: "tote" } });
+    const okResult = await client.callTool({ name: "list_psd_mockups", arguments: { limit: 1, name: "tote" } });
     assert.notEqual(okResult.isError, true);
 
     // API failure surfaces as a tool error and is logged with the HTTP status.
@@ -1308,7 +1416,7 @@ test("each tool call writes one JSON line to stderr that names the tool and outc
     assert.equal(lines.length, 3, `expected three log lines, got: ${stderr.raw()}`);
 
     const [ok, http, tool] = lines;
-    assert.equal(ok.tool, "list_mockups");
+    assert.equal(ok.tool, "list_psd_mockups");
     assert.equal(ok.ok, true);
     assert.equal(ok.error_type, undefined);
     assert.equal(ok.client, `mcp-stdio/${PACKAGE_VERSION}`);

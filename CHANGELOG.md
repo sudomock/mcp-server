@@ -2,6 +2,58 @@
 
 ## [Unreleased]
 
+### Fixed
+- `wait_for_job` treats `cancelled` as a terminal status, next to `succeeded`
+  and `failed`, and returns the job at once instead of polling it until
+  `timeout_seconds` and reporting `timed_out` for work that is over. `get_job`
+  lists the status values the API returns.
+
+## [3.0.0] - 2026-09-19
+
+### Changed (BREAKING)
+- Every mockup tool is named after its family, PSD mockups or photo mockups.
+  No alias answers to a 2.x name: a client written against 2.x fails at
+  "tool not found" rather than being redirected to a tool whose arguments
+  have changed. The hosted server (`mcp.sudomock.com`) uses the same names
+  from its 2.0 release.
+
+  | 2.x | 3.0 |
+  |-----|-----|
+  | `list_mockups` | `list_psd_mockups` |
+  | `get_mockup_details` | `get_psd_mockup` |
+  | `update_mockup` | `update_psd_mockup` |
+  | `delete_mockup` | `delete_psd_mockup` |
+  | `render_mockup` | `render_psd_mockup` |
+  | `create_2d_mockup` | `create_photo_mockup` |
+  | `list_2d_mockups` | `list_photo_mockups` |
+  | `get_2d_mockup` | `get_photo_mockup` |
+  | `update_2d_print_areas` | `update_photo_mockup_print_areas` |
+  | `delete_2d_mockup` | `delete_photo_mockup` |
+  | `render_2d_surface`, `render_2d_print_area` | `render_photo_mockup` |
+
+- `render_photo_mockup` is one tool for both kinds of target, shaped like the
+  hosted server's: exactly one of `print_area_uuid` or `surface_uuid`, and the
+  sizing dials of both (`coverage` or `width` + `height` on a surface, `fit`
+  or `width` + `height` on a print area). Naming both targets, or neither, is
+  refused before anything is sent. The dial of the other kind of target is
+  refused by name, with the same sentence the two tools used to answer, rather
+  than dropped; the retired `scale` is still refused by name. Anchoring and
+  sizing carry no client-side default, as in 2.6.
+- Photo mockup tools take `mockup_id`, the field `list_photo_mockups` and
+  `create_photo_mockup` return and the REST API uses. `render_2d_surface` and
+  `render_2d_print_area` took it as `mockup_uuid`. PSD mockup tools keep
+  `mockup_uuid`.
+- Requests go to the family paths, `/api/v1/psd-mockups` and
+  `/api/v1/photo-mockups`. An async photo mockup job submitted through 3.0
+  reports its family kind, `photo_mockup_create` / `photo_mockup_render`,
+  where 2.x reported `2d_create` / `2d_render`; `list_jobs` selects a job by
+  either spelling and a webhook endpoint's `event_naming` pin still decides
+  which spelling its deliveries carry.
+
+### Removed (BREAKING)
+- `render_2d_surface` and `render_2d_print_area`, folded into
+  `render_photo_mockup` above.
+
 ## [2.8.0] - 2026-09-18
 
 ### Added

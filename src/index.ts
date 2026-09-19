@@ -4,7 +4,8 @@
  * SudoMock MCP Server
  *
  * Local stdio MCP server for Claude Desktop, Claude Code, Cursor, and VS Code.
- * Renders photorealistic product mockups from Photoshop PSD templates via the SudoMock API.
+ * Renders photorealistic product mockups from Photoshop PSD templates and
+ * product photos via the SudoMock API.
  *
  * Auth: SUDOMOCK_API_KEY environment variable
  * Transport: stdio (local process)
@@ -211,7 +212,7 @@ export function formatJobAccepted(result: unknown): string {
   return JSON.stringify(summary, null, 2);
 }
 
-export const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed"]);
+export const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
 
 /** GET /api/v1/jobs/{job_id} -- owner-scoped job status snapshot. */
 async function getJob(jobId: string, timeout = DEFAULT_TIMEOUT): Promise<Record<string, unknown>> {
@@ -777,12 +778,12 @@ const server = new McpServer({
 instrumentToolCalls(server);
 
 // ---------------------------------------------------------------------------
-// Tool 1: list_mockups
+// Tool 1: list_psd_mockups
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "list_mockups",
-  "List your uploaded mockup templates with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details.",
+  "list_psd_mockups",
+  "List your uploaded PSD mockup templates with UUIDs, names, and thumbnails. Use returned UUIDs with render_psd_mockup or get_psd_mockup.",
   {
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
@@ -795,7 +796,7 @@ server.tool(
   async ({ limit, offset, name, created_after, created_before, sort_by, sort_order }) => {
     const result = await apiRequest({
       method: "GET",
-      path: "/api/v1/mockups",
+      path: "/api/v1/psd-mockups",
       params: { limit, offset, name, created_after, created_before, sort: sort_by, order: sort_order },
     });
     return {
@@ -808,19 +809,19 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool 2: get_mockup_details
+// Tool 2: get_psd_mockup
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "get_mockup_details",
-  "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs.",
+  "get_psd_mockup",
+  "Get full details of a PSD mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, editable text layers, and thumbnail URLs.",
   {
-    mockup_uuid: z.string().describe("The UUID of the mockup to inspect"),
+    mockup_uuid: z.string().describe("The UUID of the PSD mockup to inspect"),
   },
   async ({ mockup_uuid }) => {
     const result = await apiRequest({
       method: "GET",
-      path: `/api/v1/mockups/${mockup_uuid}`,
+      path: `/api/v1/psd-mockups/${mockup_uuid}`,
     });
     return {
       content: [{
@@ -832,20 +833,20 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool 3: update_mockup
+// Tool 3: update_psd_mockup
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "update_mockup",
-  "Rename a mockup template.",
+  "update_psd_mockup",
+  "Rename a PSD mockup template.",
   {
-    mockup_uuid: z.string().describe("The UUID of the mockup to rename"),
+    mockup_uuid: z.string().describe("The UUID of the PSD mockup to rename"),
     name: z.string().describe("New display name for the mockup"),
   },
   async ({ mockup_uuid, name }) => {
     const result = await apiRequest({
       method: "PATCH",
-      path: `/api/v1/mockups/${mockup_uuid}`,
+      path: `/api/v1/psd-mockups/${mockup_uuid}`,
       body: { name },
     });
     return {
@@ -858,26 +859,26 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool 4: delete_mockup
+// Tool 4: delete_psd_mockup
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "delete_mockup",
-  "Permanently delete a mockup template. Cannot be undone.",
+  "delete_psd_mockup",
+  "Permanently delete a PSD mockup template. Cannot be undone.",
   {
-    mockup_uuid: z.string().describe("The UUID of the mockup to delete"),
+    mockup_uuid: z.string().describe("The UUID of the PSD mockup to delete"),
   },
   async ({ mockup_uuid }) => {
     await apiRequest({
       method: "DELETE",
-      path: `/api/v1/mockups/${mockup_uuid}`,
+      path: `/api/v1/psd-mockups/${mockup_uuid}`,
     });
     return { content: [{ type: "text" as const, text: `Mockup ${mockup_uuid} deleted successfully.` }] };
   }
 );
 
 // ---------------------------------------------------------------------------
-// Tool 5: render_mockup
+// Tool 5: render_psd_mockup
 // ---------------------------------------------------------------------------
 
 const smartObjectInputSchema = z
@@ -944,7 +945,7 @@ const textLayerInputSchema = z
     uuid: z
       .string()
       .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
-      .describe("UUID from get_mockup_details text_layers"),
+      .describe("UUID from get_psd_mockup text_layers"),
     text: z.string().min(1).max(500).optional().describe("Replacement text for a single-style layer"),
     segments: z
       .array(
@@ -997,10 +998,10 @@ const textLayerInputSchema = z
   });
 
 server.tool(
-  "render_mockup",
-  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
+  "render_psd_mockup",
+  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_psd_mockups and get_psd_mockup to find target UUIDs.",
   {
-    mockup_uuid: z.string().describe("UUID of the mockup template (from list_mockups)"),
+    mockup_uuid: z.string().describe("UUID of the PSD mockup template (from list_psd_mockups)"),
     smart_object_uuid: z.string().optional().describe("UUID of one smart object layer. Provide with artwork_url, or use smart_objects for one or more entries."),
     artwork_url: z.string().optional().describe("Public artwork URL for smart_object_uuid. Provide both singular fields, or use smart_objects."),
     smart_objects: z
@@ -1013,7 +1014,7 @@ server.tool(
       .min(1)
       .max(50)
       .optional()
-      .describe("Editable text overrides from get_mockup_details. Each entry needs exactly one of text or segments. May be used alone or with smart objects."),
+      .describe("Editable text overrides from get_psd_mockup. Each entry needs exactly one of text or segments. May be used alone or with smart objects."),
     fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How singular artwork_url fills its smart object area"),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (default 2048)"),
@@ -1164,15 +1165,15 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool: create_2d_mockup
+// Tool: create_photo_mockup
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "create_2d_mockup",
-  "Create a reusable 2D mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
+  "create_photo_mockup",
+  "Create a reusable photo mockup from a public image URL of a product. Returns the mockup_id and its render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
   {
     source_url: z.string().describe("Public HTTPS URL of the product image"),
-    name: z.string().optional().describe("Optional display name for the 2D mockup"),
+    name: z.string().optional().describe("Optional display name for the photo mockup"),
     idempotency_key: z.string().min(1).max(255).optional().describe("Optional retry-stable key for this create request"),
     is_async: z
       .boolean()
@@ -1188,7 +1189,7 @@ server.tool(
 
     const result = (await apiRequest({
       method: "POST",
-      path: "/api/v1/sudoai/2d-mockups",
+      path: "/api/v1/photo-mockups",
       body,
       headers: { "Idempotency-Key": idempotency_key ?? randomUUID() },
     })) as Record<string, unknown>;
@@ -1227,16 +1228,17 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// 2D render: one tool per kind of target
+// Tool: render_photo_mockup
 // ---------------------------------------------------------------------------
 
-// A render names one target and nothing else. A product surface takes a
-// coverage percentage; a print area takes a fit or an explicit box. Two tools
-// rather than one, because those are two different dials and a single tool
-// could only describe in prose what the shape can state outright: whichever
-// tool the caller reaches for, every field on it applies.
-const TWO_D_SHARED = {
-  mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
+// A render names one target and nothing else: exactly one of print_area_uuid
+// or surface_uuid. A product surface is sized by a coverage percentage, a
+// print area by a fit, and either by an exact width + height. One tool holds
+// both dials, the same shape the hosted server exposes, so the dial that
+// belongs to the other kind of target is refused here by name instead of
+// being a field the caller could never reach.
+const PHOTO_RENDER_SHARED = {
+  mockup_id: z.string().describe("UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup)."),
   artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
   remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
   opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
@@ -1285,8 +1287,8 @@ const TWO_D_SHARED = {
     ),
 };
 
-type TwoDSharedArgs = {
-  mockup_uuid: string;
+type PhotoRenderSharedArgs = {
+  mockup_id: string;
   artwork_url: string;
   remove_background: boolean;
   opacity: number;
@@ -1303,78 +1305,104 @@ type TwoDSharedArgs = {
   is_async: boolean;
 };
 
-// The option a caller can write on one of these two tools but not the other,
-// and the sentence that sends them to the one that works.
+// The sentences a refused option is answered with.
 //
-// An argument a tool never declared is dropped before the handler ever sees it,
-// so `coverage` on a print area, `fit` on a surface, and the retired `scale` on
-// either used to come back as a successful render with the caller's option
-// gone and nothing said about it. The API answers all three with a 422. The
-// consumer on this side is a language model: an option it wrote disappearing in
-// silence teaches it nothing and it writes the same option again, while one
-// named sentence teaches it in a single turn.
-//
-// The wording is the API's own, so the caller reads the same reason whichever
+// The API answers each of these with a 422, and refusing them here as well is
+// deliberate: a client that can put a shape on the wire the API is guaranteed
+// to reject has spent the caller's round trip telling them something it
+// already knew. The consumer on this side is a language model: an option it
+// wrote disappearing in silence teaches it nothing and it writes the same
+// option again, while one named sentence teaches it in a single turn. The
+// wording is the API's own, so the caller reads the same reason whichever
 // side answers first.
+const ONE_TARGET = "Provide exactly one of print_area_uuid or surface_uuid";
+
+const FIT_ON_SURFACE =
+  "A surface covers the whole product, so fit has nothing to fit against. Send coverage to choose how much of the surface the artwork spans, or width and height to give it an exact size, or render a print area instead.";
+
+const COVERAGE_ON_PRINT_AREA =
+  "A print area is sized by fit, or by an explicit width and height, so coverage has no meaning on one. Send fit or a width and height, or render the product surface instead.";
+
 const RETIRED_SCALE =
   "scale has been retired and nothing replaces the name. Send width and height together to draw the artwork at an exact size; a single multiplier could not express two independent axes.";
 
-const TWO_D_REFUSED_OPTIONS: Record<"surface" | "print_area", Record<string, string>> = {
-  surface: {
-    fit: "A surface covers the whole product, so fit has nothing to fit against. Send coverage to choose how much of the surface the artwork spans, or width and height to give it an exact size, or render a print area instead.",
-    scale: RETIRED_SCALE,
-  },
-  print_area: {
-    coverage: "A print area is sized by fit, or by an explicit width and height, so coverage has no meaning on one. Send fit or a width and height, or render the product surface instead.",
-    scale: RETIRED_SCALE,
-  },
-};
-
 /**
- * Build the arguments one 2D render tool accepts, and refuse the rest by name.
- *
- * Strict on purpose, and only on these two tools: the pair exists precisely
- * because the sizing options are split between them, so an option landing on
- * the wrong one of the two is the mistake most worth catching. Refusing is
- * keyed on the argument being written rather than on the value it holds, so an
- * explicitly written null is caught as well: writing it is the caller naming
- * the option.
- *
- * An option with no sentence of its own still gets refused rather than dropped.
- * A name we never published is either a typo or an option the caller believes
- * exists, and both are worth one line of reply.
+ * The tool's input. Strict on purpose: an argument a tool never declared is
+ * dropped before the handler ever sees it, so the retired `scale` used to come
+ * back as a successful render with the caller's option gone and nothing said
+ * about it. A name we never published is either a typo or an option the
+ * caller believes exists, and both are worth one line of reply.
  */
-function twoDRenderInput<Shape extends z.ZodRawShape>(kind: "surface" | "print_area", shape: Shape) {
-  const refused = TWO_D_REFUSED_OPTIONS[kind];
-  return z.strictObject(shape, {
+const renderPhotoMockupInput = z.strictObject(
+  {
+    ...PHOTO_RENDER_SHARED,
+    print_area_uuid: z
+      .string()
+      .optional()
+      .describe(
+        "UUID of a saved print area from get_photo_mockup's print_areas[] (its print_area_id): a bounded zone somebody drew on the product, such as a chest logo. Omit when surface_uuid is used."
+      ),
+    surface_uuid: z
+      .string()
+      .optional()
+      .describe(
+        "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used."
+      ),
+    coverage: z
+      .number()
+      .min(10)
+      .max(100)
+      .optional()
+      .describe(
+        "How much of the surface the artwork spans, as a percentage (10-100). Belongs to surface_uuid; sending it with print_area_uuid is refused. Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size."
+      ),
+    fit: z
+      .enum(["contain", "fill", "cover"])
+      .optional()
+      .describe(
+        "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead."
+      ),
+    // A percentage cannot express a box whose proportions differ from the
+    // surface's, which is exactly what an artwork resized on a canvas is, so
+    // the exact box belongs to both kinds of target.
+    width: z
+      .number()
+      .min(1)
+      .max(30000)
+      .optional()
+      .describe(
+        "Artwork width in pixels, drawn at that exact size instead of by coverage or fit. Send together with height, and without coverage or fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement."
+      ),
+    height: z
+      .number()
+      .min(1)
+      .max(30000)
+      .optional()
+      .describe(
+        "Artwork height in pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you."
+      ),
+  },
+  {
     error: (issue) => {
       if (issue.code !== "unrecognized_keys") return undefined;
       return issue.keys
-        .map(
-          (key) =>
-            refused[key] ??
-            `${key} is not an option on this tool. Send only the options it lists, and read them from the tool's own arguments rather than from another tool's.`
+        .map((key) =>
+          key === "scale"
+            ? RETIRED_SCALE
+            : `${key} is not an option on this tool. Send only the options it lists.`
         )
         .join(" ");
     },
-  });
-}
+  }
+);
 
 /**
  * Refuse a placement that answers the sizing question more than once, or half.
  *
- * The API refuses these too, and refusing them here as well is deliberate. A
- * client that can put a shape on the wire the API is guaranteed to reject has
- * spent the caller's round trip telling them something it already knew.
- *
- * This is not the thing that was taken out of here. A default invents a value
- * the caller never typed and quietly changes the render when it drifts from
- * the renderer's; a refusal invents nothing, and if it ever drifts it drifts
- * into refusing out loud, with the API still refusing behind it. It also
- * cannot drift unnoticed: the contract test reads the shared placement wire
- * fixture and asserts every shape listed there as rejected is still
- * unreachable from every tool, and the wording below is the wording the API
- * answers with, so a caller reads the same reason from either side.
+ * A default invents a value the caller never typed and quietly changes the
+ * render when it drifts from the renderer's; a refusal invents nothing, and if
+ * it ever drifts it drifts into refusing out loud, with the API still refusing
+ * behind it.
  *
  * `relativeSizing` is whichever proportional option belongs to this kind of
  * target -- `coverage` on a surface, `fit` on a print area.
@@ -1402,20 +1430,19 @@ function assertOneSizingAnswer(
 /**
  * Send one render and hand back what the caller can act on.
  *
- * `target` carries the address field, `placement` the dials that belong to that
- * kind of target. Neither is inspected here: the dials a caller may turn are
- * settled by which tool they called, so there is nothing left to check.
+ * `target` carries the address field, `placement` the sizing dials that
+ * belong to that kind of target. Neither is inspected here: the handler has
+ * already settled which target this is and which dials it may carry.
  */
-async function renderTwoD(
-  args: TwoDSharedArgs,
+async function renderPhotoMockup(
+  args: PhotoRenderSharedArgs,
   target: Record<string, unknown>,
   placement: Record<string, unknown>
 ) {
-  // Anchoring belongs to both kinds of target; only sizing is split, and the
-  // caller's tool already settled which sizing options exist. What the caller
-  // did not name is absent, and a placement nobody touched is absent entirely
-  // rather than sent as an empty object -- an empty object still claims the
-  // caller reached for placement.
+  // Anchoring belongs to both kinds of target; only sizing is split. What the
+  // caller did not name is absent, and a placement nobody touched is absent
+  // entirely rather than sent as an empty object -- an empty object still
+  // claims the caller reached for placement.
   const sent: Record<string, unknown> = {
     ...(args.position === undefined ? {} : { position: args.position }),
     ...(args.offset_x === undefined ? {} : { offset_x: args.offset_x }),
@@ -1450,14 +1477,14 @@ async function renderTwoD(
 
   const result = await apiRequest({
     method: "POST",
-    path: `/api/v1/sudoai/2d-mockups/${args.mockup_uuid}/render`,
+    path: `/api/v1/photo-mockups/${args.mockup_id}/render`,
     body,
     timeout: RENDER_TIMEOUT,
   });
 
-  // is_async=true -> 202 + job_id (kind "2d_render" on this path; the family
-  // spelling is "photo_mockup_render"); hand back the poll contract.
-  // Reuse get_job / wait_for_job to reach the terminal job (result_url).
+  // is_async=true -> 202 + job_id (kind "photo_mockup_render" on this path);
+  // hand back the poll contract. Reuse get_job / wait_for_job to reach the
+  // terminal job (result_url).
   if (args.is_async) {
     return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
   }
@@ -1480,93 +1507,24 @@ async function renderTwoD(
   return { content: [{ type: "text" as const, text: JSON.stringify(rendered, null, 2) }] };
 }
 
-// ---------------------------------------------------------------------------
-// Tool: render_2d_surface
-// ---------------------------------------------------------------------------
-
 server.registerTool(
-  "render_2d_surface",
+  "render_photo_mockup",
   {
-    description: "Render artwork across a whole product surface -- an all-over print. Every printable product in the photo is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
-    inputSchema: twoDRenderInput("surface", {
-      ...TWO_D_SHARED,
-      surface_uuid: z.string().describe("UUID of a product surface from get_2d_mockup's surfaces[]."),
-      coverage: z
-        .number()
-        .min(10)
-        .max(100)
-        .optional()
-        .describe(
-          "How much of the surface the artwork spans, as a percentage (10-100). Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size."
-        ),
-      // A percentage cannot express a box whose proportions differ from the
-      // surface's, which is exactly what an artwork resized on a canvas is.
-      width: z
-        .number()
-        .min(1)
-        .max(30000)
-        .optional()
-        .describe(
-          "Artwork width in pixels, drawn at that exact size rather than as a percentage of the surface. Send together with height, and without coverage."
-        ),
-      height: z
-        .number()
-        .min(1)
-        .max(30000)
-        .optional()
-        .describe(
-          "Artwork height in pixels. Send together with width, and without coverage. The two axes are independent, so any aspect ratio is allowed."
-        ),
-    }),
+    description: "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_photo_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+    inputSchema: renderPhotoMockupInput,
   },
   async (args) => {
+    const hasPrintArea = args.print_area_uuid !== undefined;
+    const hasSurface = args.surface_uuid !== undefined;
+    if (hasPrintArea === hasSurface) throw new Error(ONE_TARGET);
+    // The dial of the other kind of target is refused by name. Refusing is
+    // keyed on the argument being written rather than on the value it holds:
+    // writing it is the caller naming the option.
+    if (hasSurface && args.fit !== undefined) throw new Error(FIT_ON_SURFACE);
+    if (hasPrintArea && args.coverage !== undefined) throw new Error(COVERAGE_ON_PRINT_AREA);
+
     const sizing = {
       ...(args.coverage === undefined ? {} : { coverage: args.coverage }),
-      ...(args.width === undefined ? {} : { width: args.width }),
-      ...(args.height === undefined ? {} : { height: args.height }),
-    };
-    assertOneSizingAnswer(sizing, "coverage");
-    return renderTwoD(args, { surface_uuid: args.surface_uuid }, sizing);
-  }
-);
-
-// ---------------------------------------------------------------------------
-// Tool: render_2d_print_area
-// ---------------------------------------------------------------------------
-
-server.registerTool(
-  "render_2d_print_area",
-  {
-    description: "Render artwork onto one saved print area -- a bounded zone somebody drew on the product, such as a chest logo. Read the print_area_id values from get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
-    inputSchema: twoDRenderInput("print_area", {
-      ...TWO_D_SHARED,
-      print_area_uuid: z.string().describe("UUID of a saved print area from get_2d_mockup's print_areas[] (its print_area_id)."),
-      fit: z
-        .enum(["contain", "fill", "cover"])
-        .optional()
-        .describe(
-          "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead."
-        ),
-      width: z
-        .number()
-        .min(1)
-        .max(30000)
-        .optional()
-        .describe(
-          "Artwork width in print-area pixels. Send together with height, and without fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement."
-        ),
-      height: z
-        .number()
-        .min(1)
-        .max(30000)
-        .optional()
-        .describe(
-          "Artwork height in print-area pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you."
-        ),
-    }),
-  },
-  async (args) => {
-    const sizing = {
       ...(args.fit === undefined ? {} : { fit: args.fit }),
       ...(args.width === undefined ? {} : { width: args.width }),
       ...(args.height === undefined ? {} : { height: args.height }),
@@ -1575,18 +1533,22 @@ server.registerTool(
     // the half instead would render a size the caller never asked for with no
     // error to notice, and forwarding it spends a round trip to be told what
     // the shape already said.
-    assertOneSizingAnswer(sizing, "fit");
-    return renderTwoD(args, { uuid: args.print_area_uuid }, sizing);
+    assertOneSizingAnswer(sizing, hasSurface ? "coverage" : "fit");
+    return renderPhotoMockup(
+      args,
+      hasSurface ? { surface_uuid: args.surface_uuid } : { uuid: args.print_area_uuid },
+      sizing
+    );
   }
 );
 
 // ---------------------------------------------------------------------------
-// Tool: list_2d_mockups
+// Tool: list_photo_mockups
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "list_2d_mockups",
-  "List your saved SudoAI 2D mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits.",
+  "list_photo_mockups",
+  "List your saved photo mockup templates, made from product photos with no PSD. Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_photo_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits.",
   {
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
@@ -1595,7 +1557,7 @@ server.tool(
   async ({ limit, offset, customizable_only }) => {
     const result = await apiRequest({
       method: "GET",
-      path: "/api/v1/sudoai/2d-mockups",
+      path: "/api/v1/photo-mockups",
       params: { limit, offset, customizable_only },
     });
     return {
@@ -1608,19 +1570,19 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool: get_2d_mockup
+// Tool: get_photo_mockup
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "get_2d_mockup",
-  "Get one SudoAI 2D mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+  "get_photo_mockup",
+  "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id as print_area_uuid, or a surfaces[].surface_uuid, to render_photo_mockup. Costs 0 credits.",
   {
-    mockup_id: z.string().describe("UUID of the 2D mockup (mockup_id from list_2d_mockups)"),
+    mockup_id: z.string().describe("UUID of the photo mockup (mockup_id from list_photo_mockups)"),
   },
   async ({ mockup_id }) => {
     const result = await apiRequest({
       method: "GET",
-      path: `/api/v1/sudoai/2d-mockups/${mockup_id}`,
+      path: `/api/v1/photo-mockups/${mockup_id}`,
     });
     return {
       content: [{
@@ -1632,14 +1594,14 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool: update_2d_print_areas
+// Tool: update_photo_mockup_print_areas
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "update_2d_print_areas",
-  "Replace a 2D mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
+  "update_photo_mockup_print_areas",
+  "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
   {
-    mockup_id: z.string().describe("UUID of the 2D mockup to update"),
+    mockup_id: z.string().describe("UUID of the photo mockup to update"),
     print_areas: z
       .array(
         z.object({
@@ -1657,7 +1619,7 @@ server.tool(
   async ({ mockup_id, print_areas }) => {
     const result = await apiRequest({
       method: "PUT",
-      path: `/api/v1/sudoai/2d-mockups/${mockup_id}/print-areas`,
+      path: `/api/v1/photo-mockups/${mockup_id}/print-areas`,
       body: { print_areas },
     });
     const envelope = asRecord(result);
@@ -1676,19 +1638,19 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
-// Tool: delete_2d_mockup
+// Tool: delete_photo_mockup
 // ---------------------------------------------------------------------------
 
 server.tool(
-  "delete_2d_mockup",
-  "Permanently delete a SudoAI 2D mockup template and all of its data. Cannot be undone. Costs 0 credits.",
+  "delete_photo_mockup",
+  "Permanently delete a photo mockup template and all of its data. Cannot be undone. Costs 0 credits.",
   {
-    mockup_id: z.string().describe("UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"),
+    mockup_id: z.string().describe("UUID of the photo mockup to delete (mockup_id from list_photo_mockups)"),
   },
   async ({ mockup_id }) => {
     const result = await apiRequest({
       method: "DELETE",
-      path: `/api/v1/sudoai/2d-mockups/${mockup_id}`,
+      path: `/api/v1/photo-mockups/${mockup_id}`,
     });
     const envelope = asRecord(result);
     const data = asRecord(envelope.data ?? result);
@@ -1751,7 +1713,7 @@ server.tool(
 
 server.tool(
   "get_job",
-  "Get the current status of any async render, video, upload, or photo mockup (2D) job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
+  "Get the current status of any async render, video, upload, or photo mockup (2D) job by its job_id. Returns status (queued|dispatched|running|succeeded|failed|cancelled), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
   {
     job_id: z.string().describe("The job_id returned by any async submission"),
   },
@@ -1797,7 +1759,7 @@ server.tool(
 
 server.tool(
   "wait_for_job",
-  "Poll any async render, video, upload, or photo mockup (2D) job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
+  "Poll any async render, video, upload, or photo mockup (2D) job until it succeeds, fails, or is cancelled, then return the final result and credits charged. Blocks while polling.",
   {
     job_id: z.string().describe("The job_id to wait on (from an async submission or render_video)"),
     poll_interval_seconds: z
@@ -1846,8 +1808,8 @@ server.tool(
   "render_video",
   "Create a short AI video from either a mockup with artwork or a public image URL. Supply exactly one input mode. Always async: returns a job_id immediately for get_job or wait_for_job. Credit cost depends on clip length, audio, and the automatically selected quality. Unsupported durations are rejected.",
   {
-    mockup_uuid: z.string().optional().describe("RENDER MODE: UUID of the mockup to animate (from list_mockups or upload_psd). Required in render mode. In raw-image mode it is an optional association (groups the clip under that mockup's 'Past clips')."),
-    smart_object_uuid: z.string().optional().describe("RENDER MODE: UUID of the smart object layer to place artwork on (from get_mockup_details). Required in render mode; omit in raw-image mode."),
+    mockup_uuid: z.string().optional().describe("RENDER MODE: UUID of the PSD mockup to animate (from list_psd_mockups or upload_psd). Required in render mode. In raw-image mode it is an optional association (groups the clip under that mockup's 'Past clips')."),
+    smart_object_uuid: z.string().optional().describe("RENDER MODE: UUID of the smart object layer to place artwork on (from get_psd_mockup). Required in render mode; omit in raw-image mode."),
     artwork_url: z.string().optional().describe("RENDER MODE: public URL of the artwork image (PNG/JPG/WebP) to place on the mockup before animating. Provide this OR artwork_base64. Omit in raw-image mode."),
     artwork_base64: z.string().optional().describe("RENDER MODE: raw base64-encoded artwork bytes (no data: prefix). Provide this OR artwork_url."),
     artwork_content_type: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]).optional().describe("MIME type for artwork_base64 (defaults to image/png if omitted)."),
