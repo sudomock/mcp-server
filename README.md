@@ -2,7 +2,7 @@
 
 > Generate photorealistic product mockups from Claude, Cursor, Windsurf, and VS Code.
 
-[Model Context Protocol](https://modelcontextprotocol.io/introduction) server for the [SudoMock](https://sudomock.com) mockup generation API. Upload PSD templates, place artwork onto smart objects, edit supported text layers, and get rendered image URLs -- all through natural language.
+[Model Context Protocol](https://modelcontextprotocol.io/introduction) server for the [SudoMock](https://sudomock.com) mockup generation API. Upload PSD templates, place artwork onto smart objects, edit supported text layers, turn a product photo into a reusable photo mockup, and get rendered image URLs -- all through natural language.
 
 ## Quick Start
 
@@ -36,32 +36,36 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 
 </details>
 
-> **Note:** A hosted remote (HTTP/OAuth) transport is not available yet. This
-> package only ships the local stdio server shown above.
+> **Note:** This package ships the local stdio server shown above. The hosted
+> remote transport (OAuth, `https://mcp.sudomock.com`) is documented at
+> [sudomock.com/docs/mcp](https://sudomock.com/docs/mcp). From 3.0 the two
+> transports use the same tool names.
 
 ## Tools
 
+Tools are named after the mockup family they act on: **PSD mockups** are
+uploaded Photoshop templates, **photo mockups** are made from a product photo.
+
 | Tool | Description | Credits |
 |------|-------------|---------|
-| `list_mockups` | List your uploaded mockup templates | 0 |
-| `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
-| `render_mockup` | Render a mockup with artwork and/or editable text | 1 |
-| `remove_background` | Get a transparent-PNG cutout through a 7-day signed URL | 25 |
-| `create_2d_mockup` | Create a 2D mockup and detect printable surfaces automatically | 25 |
-| `render_2d_surface` | Print artwork across a whole product surface (all-over) | 5 |
-| `render_2d_print_area` | Print artwork into one saved print area (a drawn zone) | 5 |
-| `render_video` | Animate a mockup into a video clip (always async) | cost-based (one per account at no charge, then cost-based) |
 | `upload_psd` | Upload a Photoshop PSD/PSB template (sync or async) | 0 |
-| `list_2d_mockups` | List saved 2D templates; use `customizable_only` for shopper-ready items | 0 |
-| `get_2d_mockup` | Get one 2D mockup's saved print areas and its product surfaces | 0 |
-| `update_2d_print_areas` | Replace a 2D mockup's print-area geometry | 0 |
-| `delete_2d_mockup` | Delete a 2D mockup template | 0 |
+| `list_psd_mockups` | List your uploaded PSD mockup templates | 0 |
+| `get_psd_mockup` | Get smart object UUIDs, editable text layers, dimensions, blend modes | 0 |
+| `update_psd_mockup` | Rename a PSD mockup template | 0 |
+| `delete_psd_mockup` | Delete a PSD mockup template | 0 |
+| `render_psd_mockup` | Render a PSD mockup with artwork and/or editable text | 1 |
+| `create_photo_mockup` | Create a photo mockup from a product photo and detect printable surfaces automatically | 25 |
+| `list_photo_mockups` | List saved photo mockups; use `customizable_only` for shopper-ready items | 0 |
+| `get_photo_mockup` | Get one photo mockup's saved print areas and its product surfaces | 0 |
+| `update_photo_mockup_print_areas` | Replace a photo mockup's print-area geometry | 0 |
+| `delete_photo_mockup` | Delete a photo mockup | 0 |
+| `render_photo_mockup` | Print artwork into one saved print area, or across a whole product surface | 5 |
+| `remove_background` | Get a transparent-PNG cutout through a 7-day signed URL | 25 |
+| `render_video` | Animate a PSD mockup into a video clip (always async) | cost-based (one per account at no charge, then cost-based) |
 | `get_job` | Check the status of an async job by job_id | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
-| `list_jobs` | List async render, video, upload, and photo mockup (2D) jobs | 0 |
+| `list_jobs` | List async render, video, upload, and photo mockup jobs | 0 |
 | `get_account` | Check plan, credits, prepaid balance, and usage | 0 |
-| `update_mockup` | Rename a mockup template | 0 |
-| `delete_mockup` | Delete a mockup template | 0 |
 | `create_webhook_endpoint` | Register a webhook for async job completion, pinned to an event naming | 0 |
 | `list_webhook_endpoints` | List your webhook endpoints | 0 |
 | `update_webhook_endpoint` | Edit or enable/disable a webhook endpoint | 0 |
@@ -71,25 +75,49 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `list_webhook_deliveries` | List delivery attempts for an endpoint | 0 |
 | `replay_webhook_delivery` | Replay a single failed delivery | 0 |
 
+### Renamed in 3.0
+
+3.0 names every mockup tool after its family and keeps no alias for the old
+name, so a client written against 2.x fails at "tool not found" rather than
+being redirected to a tool whose arguments have changed.
+
+| 2.x | 3.0 |
+|-----|-----|
+| `list_mockups` | `list_psd_mockups` |
+| `get_mockup_details` | `get_psd_mockup` |
+| `update_mockup` | `update_psd_mockup` |
+| `delete_mockup` | `delete_psd_mockup` |
+| `render_mockup` | `render_psd_mockup` |
+| `create_2d_mockup` | `create_photo_mockup` |
+| `list_2d_mockups` | `list_photo_mockups` |
+| `get_2d_mockup` | `get_photo_mockup` |
+| `update_2d_print_areas` | `update_photo_mockup_print_areas` |
+| `delete_2d_mockup` | `delete_photo_mockup` |
+| `render_2d_surface`, `render_2d_print_area` | `render_photo_mockup` |
+
+Photo mockup tools take `mockup_id`, the field `list_photo_mockups` and
+`create_photo_mockup` return. PSD mockup tools keep `mockup_uuid`.
+
 ### Async jobs
 
-`render_mockup`, `upload_psd`, `create_2d_mockup`, and both 2D render tools
-accept `is_async: true`, and `render_video` is always async. These return a
-`job_id` immediately (HTTP 202) instead of a final result. (`create_2d_mockup`
-and the 2D render tools are synchronous by default and return the mockup /
-render directly.) Poll it with `get_job`, or let `wait_for_job` block until the job
-reaches a terminal status and hands back `result_url`, `mockup_uuid`,
-`credits_charged`, and `payg` (`{credits, unit_price, cost}` for pay-as-you-go
-jobs, otherwise `null`).
+`render_psd_mockup`, `upload_psd`, `create_photo_mockup`, and
+`render_photo_mockup` accept `is_async: true`, and `render_video` is always
+async. These return a `job_id` immediately (HTTP 202) instead of a final
+result. (`create_photo_mockup` and `render_photo_mockup` are synchronous by
+default and return the mockup / render directly.) Poll it with `get_job`, or
+let `wait_for_job` block until the job reaches a terminal status and hands back
+`result_url`, `mockup_uuid`, `credits_charged`, and `payg`
+(`{credits, unit_price, cost}` for pay-as-you-go jobs, otherwise `null`).
 
-For a 2D render, pick the tool that matches the target you read from
-`get_2d_mockup`. Every printable product in the photo is a surface with its own
-`surface_uuid`: `render_2d_surface` prints across the whole of one, and takes
-either a `coverage` percentage or an explicit `width` + `height`. A print area
-is a bounded zone somebody drew on a product, such as a chest logo:
-`render_2d_print_area` takes its `print_area_uuid`, and either a `fit` or an
-explicit `width` + `height`. A product can have both, and they are separate
-targets -- a saved print area does not close off the surface it sits on.
+A photo mockup render names exactly one target, read from `get_photo_mockup`.
+Every printable product in the photo is a surface with its own `surface_uuid`:
+pass it to print across the whole of one, with either a `coverage` percentage
+or an explicit `width` + `height`. A print area is a bounded zone somebody drew
+on a product, such as a chest logo: pass its `print_area_uuid`, with either a
+`fit` or an explicit `width` + `height`. A product can have both, and they are
+separate targets -- a saved print area does not close off the surface it sits
+on. The dial of the other kind of target (`fit` on a surface, `coverage` on a
+print area) is refused by name rather than dropped.
 
 Sizing has one answer per render: send the relative option or the exact box,
 never both, and send `width` and `height` together. `position`, `offset_x`,
@@ -102,8 +130,8 @@ applies rather than a copy of it kept here.
 `remove_background` returns a transparent-PNG URL valid for 7 days. You can
 pass that URL straight back as `artwork_url` during that window. To clean
 artwork inline during a single render instead, pass
-`remove_background: true` to `render_mockup` or either 2D render tool. Either way it
-costs 25 credits per artwork, refunded automatically if processing fails.
+`remove_background: true` to `render_psd_mockup` or `render_photo_mockup`. Either
+way it costs 25 credits per artwork, refunded automatically if processing fails.
 
 ### Webhooks
 
@@ -139,7 +167,7 @@ re-pin re-spells the endpoint's stored subscription list to match.
 
 Each tool call writes one JSON line to stderr, which your MCP host keeps in its
 log file: the tool name, how long the call took, and whether it succeeded, for
-example `{"event":"mcp_tool_call","tool":"list_mockups","duration_ms":312,"ok":true}`.
+example `{"event":"mcp_tool_call","tool":"list_psd_mockups","duration_ms":312,"ok":true}`.
 Arguments, API keys, file contents and API responses are never logged. Every
 API request identifies this package as `mcp-stdio/<version>` in its
 `User-Agent` and `X-SudoMock-Client` headers.
@@ -147,7 +175,7 @@ API request identifies this package as `mcp-stdio/<version>` in its
 ## Pricing and account limits
 
 Pay as you go is the entry tier, and it has no subscription. One PSD render costs
-**$0.10**, so $1 covers 10 of them. The minimum first payment is **$5**. 2D Mockups
+**$0.10**, so $1 covers 10 of them. The minimum first payment is **$5**. Photo mockups
 and video are priced by what they cost to produce rather than at the flat render
 rate, which is why the Credits column above is not uniform.
 
@@ -176,13 +204,14 @@ as `0 / 0`.
 
 ## Example requests
 
-- "List my mockup templates"
+- "List my PSD mockup templates"
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"
 - "Replace the editable headline text, then render the mockup"
 - "Cut out the background from this product photo, then render it on the tote bag"
-- "List my 2D mockups, then render the first one with this artwork: https://example.com/logo.png"
+- "Turn this product photo into a mockup: https://example.com/tote.jpg"
+- "List my photo mockups, then render the first one with this artwork: https://example.com/logo.png"
 - "Render this design asynchronously and wait for it to finish"
-- "Queue that 2D mockup render async and give me the job id to track"
+- "Queue that photo mockup render async and give me the job id to track"
 - "Animate the hoodie mockup into a 5-second video clip"
 - "Upload this PSD as a new template: https://example.com/mockup.psd"
 - "Set up a webhook at https://example.com/hooks so I get notified when renders finish"
