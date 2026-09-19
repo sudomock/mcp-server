@@ -1254,6 +1254,7 @@ test("formatJobAccepted does NOT fall back to mockup_uuid for the job id", () =>
 test("isTerminalJob detects terminal statuses via the `status` field", () => {
   assert.equal(isTerminalJob({ status: "succeeded" }), true);
   assert.equal(isTerminalJob({ status: "failed" }), true);
+  assert.equal(isTerminalJob({ status: "cancelled" }), true);
   assert.equal(isTerminalJob({ status: "queued" }), false);
   assert.equal(isTerminalJob({ status: "running" }), false);
   assert.equal(isTerminalJob({}), false);
@@ -1263,7 +1264,43 @@ test("isTerminalJob ignores the legacy `state` key (the API returns `status`)", 
   // The poll endpoint (GET /api/v1/jobs/{id}) only ever returns `status`; a stray
   // legacy `state` key must not be read.
   assert.equal(isTerminalJob({ state: "succeeded" }), false);
-  assert.deepEqual([...TERMINAL_JOB_STATUSES].sort(), ["failed", "succeeded"]);
+  assert.deepEqual([...TERMINAL_JOB_STATUSES].sort(), ["cancelled", "failed", "succeeded"]);
+});
+
+test("wait_for_job returns at once on a cancelled job instead of polling to the deadline", async () => {
+  // The API marks a job `cancelled` as a terminal state, next to succeeded and
+  // failed (the hosted server treats it the same). A wait that did not know
+  // the word would poll a finished job until timeout_seconds and hand back a
+  // timed_out envelope for work that is over.
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  let polls = 0;
+  globalThis.fetch = async () => {
+    polls += 1;
+    return Response.json({ job_id: "job-cancelled", kind: "render", status: "cancelled" });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  try {
+    const started = Date.now();
+    const result = await client.callTool({
+      name: "wait_for_job",
+      arguments: { job_id: "job-cancelled", poll_interval_seconds: 1, timeout_seconds: 5 },
+    });
+    const job = JSON.parse((result.content as Array<{ type: "text"; text: string }>)[0].text);
+    assert.equal(job.timed_out, undefined);
+    assert.equal(job.status, "cancelled");
+    assert.equal(job.job_id, "job-cancelled");
+    assert.equal(polls, 1);
+    assert.ok(Date.now() - started < 1000, "returned without sleeping a poll interval");
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
 });
 
 // ---------------------------------------------------------------------------
