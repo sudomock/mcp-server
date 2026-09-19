@@ -1598,7 +1598,7 @@ server.registerTool(
 
 server.tool(
   "list_2d_mockups",
-  "List your saved SudoAI 2D mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits.",
+  "List your saved photo mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits.",
   {
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
@@ -1625,7 +1625,7 @@ server.tool(
 
 server.tool(
   "get_2d_mockup",
-  "Get one SudoAI 2D mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+  "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the 2D mockup (mockup_id from list_2d_mockups)"),
   },
@@ -1693,7 +1693,7 @@ server.tool(
 
 server.tool(
   "delete_2d_mockup",
-  "Permanently delete a SudoAI 2D mockup template and all of its data. Cannot be undone. Costs 0 credits.",
+  "Permanently delete a photo mockup template and all of its data. Cannot be undone. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"),
   },
@@ -2350,6 +2350,12 @@ function alsoRegisterAs(existing: string, familyName: string): void {
     throw new Error(`Cannot publish ${familyName}: ${existing} has no replayable registration.`);
   }
   const [, description, ...rest] = source.args;
+  if (typeof description !== "string") {
+    throw new Error(
+      `Cannot publish ${familyName}: ${existing} was registered without a description, ` +
+        "so replaying its arguments would drop the input schema and take any argument."
+    );
+  }
   (server.tool as unknown as (...args: unknown[]) => unknown)(
     familyName,
     `${description} Family-name spelling of ${existing}: one tool under two names, same arguments, same behavior. Either name works.`,
