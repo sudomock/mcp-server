@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.9.0] - 2026-09-19
+
+### Added
+
+- **No tool name was removed, renamed or deprecated in this release.** Every
+  name 2.8.1 registered is still registered, still takes the same arguments,
+  and still sends the same request. An existing setup keeps working with no
+  change at all. What follows is added beside it, and both spellings are
+  supported from here on.
+- The PSD mockup tools answer to the family spelling as well:
+  `list_psd_mockups`, `get_psd_mockup`, `update_psd_mockup`,
+  `delete_psd_mockup`, `render_psd_mockup`. Each is the same tool as
+  `list_mockups`, `get_mockup_details`, `update_mockup`, `delete_mockup` and
+  `render_mockup` respectively, with the same arguments and the same behavior.
+- The photo mockup tools answer to the family spelling as well:
+  `create_photo_mockup`, `list_photo_mockups`, `get_photo_mockup`,
+  `update_photo_mockup_print_areas`, `delete_photo_mockup`. Each is the same
+  tool as `create_2d_mockup`, `list_2d_mockups`, `get_2d_mockup`,
+  `update_2d_print_areas` and `delete_2d_mockup` respectively.
+- `render_photo_mockup` renders either kind of target from one tool: name
+  exactly one of `surface_uuid` (sized by `coverage` or an explicit
+  `width` + `height`) or `print_area_uuid` (sized by `fit` or an explicit
+  `width` + `height`), and pass the mockup as `mockup_id`. `render_2d_surface`
+  and `render_2d_print_area` are untouched and stay the way to reach the same
+  two renders by picking a tool instead of naming a target.
+
 ## [2.8.1] - 2026-09-19
 
 ### Changed
