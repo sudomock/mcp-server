@@ -38,8 +38,9 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 
 > **Note:** This package ships the local stdio server shown above. The hosted
 > remote transport (OAuth, `https://mcp.sudomock.com`) is documented at
-> [sudomock.com/docs/mcp](https://sudomock.com/docs/mcp). From 3.0 the two
-> transports use the same tool names.
+> [sudomock.com/docs/mcp](https://sudomock.com/docs/mcp). From 3.0 of this
+> package and 2.0 of the hosted server the two transports use the same tool
+> names.
 
 ## Tools
 
@@ -63,7 +64,7 @@ uploaded Photoshop templates, **photo mockups** are made from a product photo.
 | `remove_background` | Get a transparent-PNG cutout through a 7-day signed URL | 25 |
 | `render_video` | Animate a PSD mockup into a video clip (always async) | cost-based (one per account at no charge, then cost-based) |
 | `get_job` | Check the status of an async job by job_id | 0 |
-| `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
+| `wait_for_job` | Poll an async job until it succeeds, fails, or is cancelled | 0 |
 | `list_jobs` | List async render, video, upload, and photo mockup jobs | 0 |
 | `get_account` | Check plan, credits, prepaid balance, and usage | 0 |
 | `create_webhook_endpoint` | Register a webhook for async job completion, pinned to an event naming | 0 |

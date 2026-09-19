@@ -2,13 +2,20 @@
 
 ## [Unreleased]
 
+### Fixed
+- `wait_for_job` treats `cancelled` as a terminal status, next to `succeeded`
+  and `failed`, and returns the job at once instead of polling it until
+  `timeout_seconds` and reporting `timed_out` for work that is over. `get_job`
+  lists the status values the API returns.
+
 ## [3.0.0] - 2026-09-19
 
 ### Changed (BREAKING)
 - Every mockup tool is named after its family, PSD mockups or photo mockups.
   No alias answers to a 2.x name: a client written against 2.x fails at
   "tool not found" rather than being redirected to a tool whose arguments
-  have changed. The hosted server (`mcp.sudomock.com`) uses the same names.
+  have changed. The hosted server (`mcp.sudomock.com`) uses the same names
+  from its 2.0 release.
 
   | 2.x | 3.0 |
   |-----|-----|

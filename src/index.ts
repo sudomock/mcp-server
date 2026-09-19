@@ -212,7 +212,7 @@ export function formatJobAccepted(result: unknown): string {
   return JSON.stringify(summary, null, 2);
 }
 
-export const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed"]);
+export const TERMINAL_JOB_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
 
 /** GET /api/v1/jobs/{job_id} -- owner-scoped job status snapshot. */
 async function getJob(jobId: string, timeout = DEFAULT_TIMEOUT): Promise<Record<string, unknown>> {
@@ -1713,7 +1713,7 @@ server.tool(
 
 server.tool(
   "get_job",
-  "Get the current status of any async render, video, upload, or photo mockup (2D) job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
+  "Get the current status of any async render, video, upload, or photo mockup (2D) job by its job_id. Returns status (queued|dispatched|running|succeeded|failed|cancelled), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
   {
     job_id: z.string().describe("The job_id returned by any async submission"),
   },
@@ -1759,7 +1759,7 @@ server.tool(
 
 server.tool(
   "wait_for_job",
-  "Poll any async render, video, upload, or photo mockup (2D) job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
+  "Poll any async render, video, upload, or photo mockup (2D) job until it succeeds, fails, or is cancelled, then return the final result and credits charged. Blocks while polling.",
   {
     job_id: z.string().describe("The job_id to wait on (from an async submission or render_video)"),
     poll_interval_seconds: z
