@@ -603,6 +603,7 @@ function publicAccount(result: unknown): Record<string, unknown> {
   const envelope = asRecord(result);
   const data = asRecord(envelope.data ?? result);
   const account = asRecord(data.account);
+  const organization = asRecord(data.organization);
   const subscription = asRecord(data.subscription);
   const usage = asRecord(data.usage);
   const apiKey = asRecord(data.api_key);
@@ -614,6 +615,12 @@ function publicAccount(result: unknown): Record<string, unknown> {
         email: account.email ?? null,
         name: account.name ?? null,
         created_at: account.created_at ?? null,
+      },
+      // The plan, the credits and the balance below belong to this
+      // organization, not to the person: the API key is the organization's.
+      organization: {
+        id: organization.id ?? null,
+        name: organization.name ?? null,
       },
       subscription: {
         plan: subscription.plan ?? null,
@@ -1953,7 +1960,7 @@ server.tool(
 
 server.tool(
   "get_account",
-  "Get your account info: subscription plan, remaining credits, prepaid balance, usage stats, billing period, and API key details. An account is funded by a subscription allowance or by a prepaid balance, so read both: an account paying as it goes reports 0 credits and pays from its balance. Quote funding_summary rather than reading the credits fields alone.",
+  "Get your account info: the organization the API key belongs to, subscription plan, remaining credits, prepaid balance, usage stats, billing period, and API key details. The plan, credits and balance belong to that organization, so name it when you report them. An account is funded by a subscription allowance or by a prepaid balance, so read both: an account paying as it goes reports 0 credits and pays from its balance. Quote funding_summary rather than reading the credits fields alone.",
   {},
   async () => {
     const result = await apiRequest({
