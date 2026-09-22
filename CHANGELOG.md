@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.10.0] - 2026-09-22
+
+### Added
+
+- `get_account` returns an `organization` block (`id`, `name`): the
+  organization the API key belongs to. The plan, the credits and the prepaid
+  balance it reports are that organization's. Every field `get_account`
+  already returned is still there and unchanged.
+
 ## [2.9.0] - 2026-09-19
 
 ### Added
