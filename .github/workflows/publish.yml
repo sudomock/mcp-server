@@ -54,16 +54,41 @@ jobs:
           "
       - name: Install mcp-publisher
         run: curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+      - name: Wait for npm to serve the version the registry will look for
+        # Registry, kaydi kabul etmeden once npm'e sorup surumu goruyor mu diye
+        # bakiyor. npm yayindan sonra "may take a few minutes to become
+        # available" diyor, yani hemen sormak 404 getiriyor ve kayit 400 ile
+        # reddediliyor: 2.10.0 kosusu tam olarak boyle dustu. Once npm'in
+        # gercekten servis ettigini gor, sonra kaydet.
+        run: |
+          V=$(node -p "require('./package.json').version")
+          N=$(node -p "require('./package.json').name")
+          for i in $(seq 1 30); do
+            if npm view "$N@$V" version >/dev/null 2>&1; then
+              echo "npm: $N@$V servis ediliyor ($((i*10))s)"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "npm: $N@$V 5 dakikada gorunmedi, kayit adimi yine de denenecek"
       - name: Publish to MCP Registry
         run: |
           ./mcp-publisher login github-oidc
-          # Ayni gerekce: surum registry'de zaten varsa bu bir hata degil,
-          # tamamlanmis bir istir. "duplicate version" cikisi basari sayilir.
-          if ./mcp-publisher publish 2>&1 | tee /tmp/mcp-publish.log; then
+          # Cikis kodu yayindan okunur, `tee`'den DEGIL: bir boru hattinin kodu
+          # son komuta aittir ve `tee` her zaman basarili olur, yani eski hali
+          # yayin dusse de "yayinlandi" yazip isi yesil birakiyordu. 2.10.0
+          # kosusu 400 aldigi halde tam olarak boyle basarili gorundu.
+          # Surum registry'de zaten varsa bu bir hata degil, tamamlanmis bir
+          # istir: "duplicate version" cikisi basari sayilir.
+          set +e
+          ./mcp-publisher publish >/tmp/mcp-publish.log 2>&1
+          code=$?
+          set -e
+          cat /tmp/mcp-publish.log
+          if [ "$code" -eq 0 ]; then
             echo "MCP Registry: yayinlandi"
           elif grep -q "duplicate version" /tmp/mcp-publish.log; then
             echo "MCP Registry: bu surum zaten kayitli, atlaniyor"
           else
-            cat /tmp/mcp-publish.log
-            exit 1
+            exit "$code"
           fi
