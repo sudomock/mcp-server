@@ -174,13 +174,13 @@ API request identifies this package as `mcp-stdio/<version>` in its
 
 ## Pricing and account limits
 
-Pay as you go is the entry tier, and it has no subscription. One PSD render costs
-**$0.05**, so $1 covers 20 of them. The minimum first payment is **$5**. 2D Mockups
-and video are priced by what they cost to produce rather than at the flat render
-rate, which is why the Credits column above is not uniform.
-
-Volume plans start at **$25/month** for 5,000 renders. The lowest self-serve rate is
-**$2.42 per 1,000 renders**, on the annual Pro 50K plan.
+Plans start at **$25/month** for 5,000 renders, which is **$0.005 per render**, and
+annual billing takes the lowest self-serve rate to **$2.42 per 1,000 renders** on the
+Pro 50K plan. Without any subscription at all it is **$0.05** per PSD render with a
+**$5** minimum first payment, so $1 covers 20 of them, which is the same rate
+standalone mockup APIs charge on a paid plan and the highest per-render rate SudoMock
+charges. 2D Mockups and video are priced by what they cost to produce rather than at
+the flat render rate, which is why the Credits column above is not uniform.
 
 A new account starts with **500 credits, granted once**, and needs no card to spend
 them. Until a card is verified and the $5 minimum is funded, that account is in
