@@ -92,3 +92,47 @@ jobs:
           else
             exit "$code"
           fi
+
+      # =================================================================
+      # PUBLISH THE TOOL MANIFEST
+      #
+      # The catalogue the dashboard and the documentation render used to be a
+      # hand-kept copy of this tool list. It drifted badly: eight tools that had
+      # never existed here were advertised, eighteen real ones were missing, and
+      # the agent setup instructions told clients to call two tools that are not
+      # here. The test that should have caught it compared one copy to another.
+      #
+      # Publishing the manifest the protocol itself reports removes the copy.
+      # Allowed to fail: a bucket that cannot be reached must not fail a release
+      # that npm and the registry already accepted.
+      # =================================================================
+
+      - name: Publish the tool manifest
+        if: success()
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          # R2 rejects every real AWS region name.
+          AWS_DEFAULT_REGION: auto
+        run: |
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$R2_ENDPOINT" ]; then
+            echo "R2 credentials are not configured; skipping the manifest publish."
+            exit 0
+          fi
+
+          npm run manifest
+
+          COUNT=$(node -p "require('./manifest.json').tools.length")
+          if [ "$COUNT" -lt 1 ]; then
+            echo "The manifest carries no tools; refusing to publish it."
+            exit 1
+          fi
+
+          aws s3 cp manifest.json s3://sudomock-assets/mcp-manifest.json \
+            --endpoint-url "$R2_ENDPOINT" \
+            --content-type application/json \
+            --cache-control "public, max-age=300, stale-while-revalidate=86400"
+
+          echo "Published $COUNT tools to https://assets.sudomock.com/mcp-manifest.json"
