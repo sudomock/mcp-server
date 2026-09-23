@@ -1,0 +1,2334 @@
+{
+  "generator": "scripts/export-manifest.ts",
+  "tools": [
+    {
+      "name": "create_2d_mockup",
+      "description": "Create a reusable 2D mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source_url": {
+            "type": "string",
+            "description": "Public HTTPS URL of the product image"
+          },
+          "name": {
+            "description": "Optional display name for the 2D mockup",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Optional retry-stable key for this create request",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue creation instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and returns the mockup. Default false returns the mockup synchronously (201).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source_url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "create_photo_mockup",
+      "description": "Create a reusable 2D mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning. Family-name spelling of create_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source_url": {
+            "type": "string",
+            "description": "Public HTTPS URL of the product image"
+          },
+          "name": {
+            "description": "Optional display name for the 2D mockup",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Optional retry-stable key for this create request",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue creation instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and returns the mockup. Default false returns the mockup synchronously (201).",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "source_url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "create_webhook_endpoint",
+      "description": "Register a webhook endpoint that SudoMock calls when async jobs finish. The signing secret is returned IN FULL exactly once here -- store it to verify the HMAC carried in the X-SudoMock-Signature header (with X-SudoMock-Timestamp) on incoming deliveries. URL must be https and publicly routable.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "https endpoint URL to receive POST deliveries (publicly routable; private/loopback hosts are rejected)"
+          },
+          "event_types": {
+            "default": [],
+            "description": "Event types to subscribe to. Supports render, upload, video, photo mockup create (photo_mockup.*), photo mockup render (photo_mockup_render.*), and webhook.test events; the legacy 2d_mockup.* / 2d_render.* spellings of the photo mockup events are accepted too. Pass an empty array (the default) to subscribe to ALL events.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "render.succeeded",
+                "render.failed",
+                "upload.succeeded",
+                "video.succeeded",
+                "video.failed",
+                "2d_mockup.ready",
+                "2d_mockup.rejected",
+                "2d_mockup.failed",
+                "2d_render.succeeded",
+                "2d_render.failed",
+                "photo_mockup.ready",
+                "photo_mockup.rejected",
+                "photo_mockup.failed",
+                "photo_mockup_render.succeeded",
+                "photo_mockup_render.failed",
+                "webhook.test"
+              ]
+            }
+          },
+          "event_naming": {
+            "description": "Which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to take the API default ('current'). Pick 'legacy' only for a receiver written against the old names.",
+            "type": "string",
+            "enum": [
+              "legacy",
+              "current"
+            ]
+          },
+          "description": {
+            "description": "Optional human-readable label for this endpoint",
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "delete_2d_mockup",
+      "description": "Permanently delete a photo mockup template and all of its data. Cannot be undone. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_id": {
+            "type": "string",
+            "description": "UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"
+          }
+        },
+        "required": [
+          "mockup_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "delete_mockup",
+      "description": "Permanently delete a mockup template. Cannot be undone.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "The UUID of the mockup to delete"
+          }
+        },
+        "required": [
+          "mockup_uuid"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "delete_photo_mockup",
+      "description": "Permanently delete a photo mockup template and all of its data. Cannot be undone. Costs 0 credits. Family-name spelling of delete_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_id": {
+            "type": "string",
+            "description": "UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"
+          }
+        },
+        "required": [
+          "mockup_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "delete_psd_mockup",
+      "description": "Permanently delete a mockup template. Cannot be undone. Family-name spelling of delete_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "The UUID of the mockup to delete"
+          }
+        },
+        "required": [
+          "mockup_uuid"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "delete_webhook_endpoint",
+      "description": "Permanently delete a webhook endpoint. SudoMock stops delivering to it. Cannot be undone.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "description": "The id of the webhook endpoint to delete (from list_webhook_endpoints)"
+          }
+        },
+        "required": [
+          "endpoint_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_2d_mockup",
+      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_id": {
+            "type": "string",
+            "description": "UUID of the 2D mockup (mockup_id from list_2d_mockups)"
+          }
+        },
+        "required": [
+          "mockup_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_account",
+      "description": "Get your account info: the organization the API key belongs to, subscription plan, remaining credits, prepaid balance, usage stats, billing period, and API key details. The plan, credits and balance belong to that organization, so name it when you report them. An account is funded by a subscription allowance or by a prepaid balance, so read both: an account paying as it goes reports 0 credits and pays from its balance. Quote funding_summary rather than reading the credits fields alone.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_job",
+      "description": "Get the current status of any async render, video, upload, or photo mockup (2D) job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "The job_id returned by any async submission"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_mockup_details",
+      "description": "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "The UUID of the mockup to inspect"
+          }
+        },
+        "required": [
+          "mockup_uuid"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_photo_mockup",
+      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits. Family-name spelling of get_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_id": {
+            "type": "string",
+            "description": "UUID of the 2D mockup (mockup_id from list_2d_mockups)"
+          }
+        },
+        "required": [
+          "mockup_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_psd_mockup",
+      "description": "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs. Family-name spelling of get_mockup_details: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "The UUID of the mockup to inspect"
+          }
+        },
+        "required": [
+          "mockup_uuid"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_2d_mockups",
+      "description": "List your saved photo mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "description": "Results per page (1-100, default 20)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "default": 0,
+            "description": "Pagination offset (default 0)",
+            "type": "number",
+            "minimum": 0
+          },
+          "customizable_only": {
+            "default": false,
+            "description": "Return only mockups ready for shopper customization",
+            "type": "boolean"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_jobs",
+      "description": "List your async jobs, including PSD renders, videos, uploads, and photo mockup (2D) creation/renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "description": "Filter by job kind. A photo mockup job has two spellings of its kind (photo_mockup_create / photo_mockup_render, or the legacy 2d_create / 2d_render); either spelling selects both. Omit for all kinds.",
+            "type": "string",
+            "enum": [
+              "video",
+              "render",
+              "upload",
+              "2d_create",
+              "2d_render",
+              "photo_mockup_create",
+              "photo_mockup_render"
+            ]
+          },
+          "mockup_uuid": {
+            "description": "Filter by source mockup UUID (e.g. one mockup's videos). Raw-image videos are never returned by this filter.",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "description": "Max jobs per page (1-50, default 20)",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "cursor": {
+            "description": "Opaque keyset cursor from a prior page's next_cursor",
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_mockups",
+      "description": "List your uploaded mockup templates with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "description": "Results per page (1-100, default 20)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "default": 0,
+            "description": "Pagination offset (default 0)",
+            "type": "number",
+            "minimum": 0
+          },
+          "name": {
+            "description": "Filter by name (case-insensitive substring match)",
+            "type": "string"
+          },
+          "created_after": {
+            "description": "Only mockups created after this ISO 8601 timestamp",
+            "type": "string"
+          },
+          "created_before": {
+            "description": "Only mockups created before this ISO 8601 timestamp",
+            "type": "string"
+          },
+          "sort_by": {
+            "default": "created_at",
+            "description": "Sort field",
+            "type": "string",
+            "enum": [
+              "created_at",
+              "updated_at",
+              "name"
+            ]
+          },
+          "sort_order": {
+            "default": "desc",
+            "description": "Sort direction",
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_photo_mockups",
+      "description": "List your saved photo mockup templates (no PSD). Returns each mockup's mockup_id, name, status, thumbnail, dimensions, and print_areas. Use the mockup_id with get_2d_mockup to read the print-area and surface UUIDs a render needs. Costs 0 credits. Family-name spelling of list_2d_mockups: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "description": "Results per page (1-100, default 20)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "default": 0,
+            "description": "Pagination offset (default 0)",
+            "type": "number",
+            "minimum": 0
+          },
+          "customizable_only": {
+            "default": false,
+            "description": "Return only mockups ready for shopper customization",
+            "type": "boolean"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_psd_mockups",
+      "description": "List your uploaded mockup templates with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details. Family-name spelling of list_mockups: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 20,
+            "description": "Results per page (1-100, default 20)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "default": 0,
+            "description": "Pagination offset (default 0)",
+            "type": "number",
+            "minimum": 0
+          },
+          "name": {
+            "description": "Filter by name (case-insensitive substring match)",
+            "type": "string"
+          },
+          "created_after": {
+            "description": "Only mockups created after this ISO 8601 timestamp",
+            "type": "string"
+          },
+          "created_before": {
+            "description": "Only mockups created before this ISO 8601 timestamp",
+            "type": "string"
+          },
+          "sort_by": {
+            "default": "created_at",
+            "description": "Sort field",
+            "type": "string",
+            "enum": [
+              "created_at",
+              "updated_at",
+              "name"
+            ]
+          },
+          "sort_order": {
+            "default": "desc",
+            "description": "Sort direction",
+            "type": "string",
+            "enum": [
+              "asc",
+              "desc"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_webhook_deliveries",
+      "description": "List delivery attempts for a webhook endpoint (status, event_type, response code, timestamps). Use this to debug failed deliveries before replaying them.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "description": "The id of the webhook endpoint (from list_webhook_endpoints)"
+          },
+          "status": {
+            "description": "Filter by delivery status (e.g. 'failed', 'succeeded')",
+            "type": "string"
+          },
+          "event_type": {
+            "description": "Filter by event type",
+            "type": "string",
+            "enum": [
+              "render.succeeded",
+              "render.failed",
+              "upload.succeeded",
+              "video.succeeded",
+              "video.failed",
+              "2d_mockup.ready",
+              "2d_mockup.rejected",
+              "2d_mockup.failed",
+              "2d_render.succeeded",
+              "2d_render.failed",
+              "photo_mockup.ready",
+              "photo_mockup.rejected",
+              "photo_mockup.failed",
+              "photo_mockup_render.succeeded",
+              "photo_mockup_render.failed",
+              "webhook.test"
+            ]
+          },
+          "limit": {
+            "default": 50,
+            "description": "Max deliveries to return (1-200, default 50)",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "required": [
+          "endpoint_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_webhook_endpoints",
+      "description": "List your registered webhook endpoints (id, url, subscribed event_types, enabled state). Secrets are NOT returned here -- only at creation and rotation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "remove_background",
+      "description": "Remove the background from any image and return a transparent-PNG cutout with clean, production-ready edges. The returned URL is valid for 7 days and can be used as artwork_url during that window. Costs 25 credits per image; credits are refunded automatically if processing fails.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Public URL of the image (PNG/JPG/WebP) to process"
+          }
+        },
+        "required": [
+          "image_url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "render_2d_print_area",
+      "description": "Render artwork onto one saved print area -- a bounded zone somebody drew on the product, such as a chest logo. Read the print_area_id values from get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."
+          },
+          "artwork_url": {
+            "type": "string",
+            "description": "Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"
+          },
+          "remove_background": {
+            "default": false,
+            "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+            "type": "boolean"
+          },
+          "opacity": {
+            "default": 100,
+            "description": "Artwork opacity percentage (0-100)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "brightness": {
+            "default": 0,
+            "description": "Brightness adjustment (-150 to 150)",
+            "type": "number",
+            "minimum": -150,
+            "maximum": 150
+          },
+          "contrast": {
+            "default": 0,
+            "description": "Contrast adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "saturation": {
+            "default": 0,
+            "description": "Saturation adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "rotation": {
+            "description": "Rotate artwork in degrees (-360 to 360). Omit to leave it unrotated.",
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "offset_x": {
+            "description": "Pixel offset along the X axis from the anchored position. Omit to sit exactly on the anchor.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "offset_y": {
+            "description": "Pixel offset along the Y axis from the anchored position. Omit to sit exactly on the anchor.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "position": {
+            "description": "Where the artwork sits within its target. Omit to accept the renderer's anchor, which is the center.",
+            "type": "string",
+            "enum": [
+              "center",
+              "top_left",
+              "top_center",
+              "top_right",
+              "center_left",
+              "center_right",
+              "bottom_left",
+              "bottom_center",
+              "bottom_right"
+            ]
+          },
+          "image_format": {
+            "default": "webp",
+            "description": "Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'",
+            "type": "string",
+            "enum": [
+              "webp",
+              "png",
+              "jpg"
+            ]
+          },
+          "image_size": {
+            "default": 2048,
+            "description": "Output width in pixels (100-10000, default 2048)",
+            "type": "number",
+            "minimum": 100,
+            "maximum": 10000
+          },
+          "quality": {
+            "default": 90,
+            "description": "Compression quality for webp/jpg (1-100, default 90)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
+            "type": "boolean"
+          },
+          "print_area_uuid": {
+            "type": "string",
+            "description": "UUID of a saved print area from get_2d_mockup's print_areas[] (its print_area_id)."
+          },
+          "fit": {
+            "description": "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead.",
+            "type": "string",
+            "enum": [
+              "contain",
+              "fill",
+              "cover"
+            ]
+          },
+          "width": {
+            "description": "Artwork width in print-area pixels. Send together with height, and without fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30000
+          },
+          "height": {
+            "description": "Artwork height in print-area pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30000
+          }
+        },
+        "required": [
+          "mockup_uuid",
+          "artwork_url",
+          "print_area_uuid"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "render_2d_surface",
+      "description": "Render artwork across a whole product surface -- an all-over print. Every printable product in the photo is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."
+          },
+          "artwork_url": {
+            "type": "string",
+            "description": "Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"
+          },
+          "remove_background": {
+            "default": false,
+            "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+            "type": "boolean"
+          },
+          "opacity": {
+            "default": 100,
+            "description": "Artwork opacity percentage (0-100)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "brightness": {
+            "default": 0,
+            "description": "Brightness adjustment (-150 to 150)",
+            "type": "number",
+            "minimum": -150,
+            "maximum": 150
+          },
+          "contrast": {
+            "default": 0,
+            "description": "Contrast adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "saturation": {
+            "default": 0,
+            "description": "Saturation adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "rotation": {
+            "description": "Rotate artwork in degrees (-360 to 360). Omit to leave it unrotated.",
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "offset_x": {
+            "description": "Pixel offset along the X axis from the anchored position. Omit to sit exactly on the anchor.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "offset_y": {
+            "description": "Pixel offset along the Y axis from the anchored position. Omit to sit exactly on the anchor.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "position": {
+            "description": "Where the artwork sits within its target. Omit to accept the renderer's anchor, which is the center.",
+            "type": "string",
+            "enum": [
+              "center",
+              "top_left",
+              "top_center",
+              "top_right",
+              "center_left",
+              "center_right",
+              "bottom_left",
+              "bottom_center",
+              "bottom_right"
+            ]
+          },
+          "image_format": {
+            "default": "webp",
+            "description": "Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'",
+            "type": "string",
+            "enum": [
+              "webp",
+              "png",
+              "jpg"
+            ]
+          },
+          "image_size": {
+            "default": 2048,
+            "description": "Output width in pixels (100-10000, default 2048)",
+            "type": "number",
+            "minimum": 100,
+            "maximum": 10000
+          },
+          "quality": {
+            "default": 90,
+            "description": "Compression quality for webp/jpg (1-100, default 90)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
+            "type": "boolean"
+          },
+          "surface_uuid": {
+            "type": "string",
+            "description": "UUID of a product surface from get_2d_mockup's surfaces[]."
+          },
+          "coverage": {
+            "description": "How much of the surface the artwork spans, as a percentage (10-100). Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size.",
+            "type": "number",
+            "minimum": 10,
+            "maximum": 100
+          },
+          "width": {
+            "description": "Artwork width in pixels, drawn at that exact size rather than as a percentage of the surface. Send together with height, and without coverage.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30000
+          },
+          "height": {
+            "description": "Artwork height in pixels. Send together with width, and without coverage. The two axes are independent, so any aspect ratio is allowed.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30000
+          }
+        },
+        "required": [
+          "mockup_uuid",
+          "artwork_url",
+          "surface_uuid"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "render_mockup",
+      "description": "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "UUID of the mockup template (from list_mockups)"
+          },
+          "smart_object_uuid": {
+            "description": "UUID of one smart object layer. Provide with artwork_url, or use smart_objects for one or more entries.",
+            "type": "string"
+          },
+          "artwork_url": {
+            "description": "Public artwork URL for smart_object_uuid. Provide both singular fields, or use smart_objects.",
+            "type": "string"
+          },
+          "smart_objects": {
+            "description": "One or more smart object overrides, each with asset or color. Do not combine with smart_object_uuid/artwork_url.",
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "description": "UUID of the smart object layer"
+                },
+                "asset": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "description": "Public URL or data URL of the artwork image",
+                      "type": "string"
+                    },
+                    "base64": {
+                      "description": "Raw base64-encoded artwork bytes without a data URL prefix",
+                      "type": "string"
+                    },
+                    "content_type": {
+                      "description": "MIME type for base64 artwork; defaults to image/png",
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/jpg",
+                        "image/webp",
+                        "image/gif"
+                      ]
+                    },
+                    "fit": {
+                      "default": "fill",
+                      "description": "How artwork fills the smart object area",
+                      "type": "string",
+                      "enum": [
+                        "fill",
+                        "contain",
+                        "cover"
+                      ]
+                    },
+                    "size": {
+                      "description": "Optional custom artwork size",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "description": "Artwork width in pixels",
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "description": "Artwork height in pixels",
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      }
+                    },
+                    "position": {
+                      "description": "Optional custom artwork position",
+                      "type": "object",
+                      "properties": {
+                        "top": {
+                          "description": "Top offset in pixels",
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "left": {
+                          "description": "Left offset in pixels",
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      }
+                    },
+                    "rotate": {
+                      "default": 0,
+                      "description": "Rotate artwork in degrees",
+                      "type": "number",
+                      "minimum": -360,
+                      "maximum": 360
+                    },
+                    "flip_horizontal": {
+                      "default": false,
+                      "description": "Mirror artwork left-right",
+                      "type": "boolean"
+                    },
+                    "flip_vertical": {
+                      "default": false,
+                      "description": "Mirror artwork top-bottom",
+                      "type": "boolean"
+                    },
+                    "remove_background": {
+                      "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "color": {
+                  "type": "object",
+                  "properties": {
+                    "hex": {
+                      "type": "string",
+                      "pattern": "^#[0-9a-fA-F]{6}$",
+                      "description": "Color overlay as a six-digit hex code"
+                    },
+                    "blending_mode": {
+                      "default": "normal",
+                      "description": "Blend mode for the color overlay",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "hex"
+                  ]
+                },
+                "adjustment_layers": {
+                  "description": "Optional artwork adjustments",
+                  "type": "object",
+                  "properties": {
+                    "brightness": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -150,
+                      "maximum": 150
+                    },
+                    "contrast": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -100,
+                      "maximum": 100
+                    },
+                    "opacity": {
+                      "default": 100,
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "saturation": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -100,
+                      "maximum": 100
+                    },
+                    "vibrance": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -100,
+                      "maximum": 100
+                    },
+                    "blur": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "required": [
+                "uuid"
+              ]
+            }
+          },
+          "text_layers": {
+            "description": "Editable text overrides from get_mockup_details. Each entry needs exactly one of text or segments. May be used alone or with smart objects.",
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "description": "UUID from get_mockup_details text_layers"
+                },
+                "text": {
+                  "description": "Replacement text for a single-style layer",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "segments": {
+                  "description": "Styled-segment replacements for a multi-style layer",
+                  "minItems": 1,
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "index": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 31,
+                        "description": "Zero-based segment index"
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "description": "Replacement text for this segment"
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "text"
+                    ]
+                  }
+                },
+                "font": {
+                  "description": "Font UUID or PostScript name for a single-style layer",
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "font_size": {
+                  "description": "Font size in pixels at the mockup's native resolution",
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000
+                },
+                "color": {
+                  "description": "Text color as a six-digit hex code",
+                  "type": "string",
+                  "pattern": "^#?[0-9a-fA-F]{6}$"
+                },
+                "stroke_color": {
+                  "description": "One outline color, or up to eight front-to-back outline colors; null keeps an original color",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^#?[0-9a-fA-F]{6}$"
+                    },
+                    {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^#?[0-9a-fA-F]{6}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "fit": {
+                  "default": "overflow",
+                  "description": "Long-text handling for single-style point text; default overflow",
+                  "type": "string",
+                  "enum": [
+                    "shrink",
+                    "clip",
+                    "overflow"
+                  ]
+                }
+              },
+              "required": [
+                "uuid"
+              ]
+            }
+          },
+          "fit": {
+            "default": "fill",
+            "description": "How singular artwork_url fills its smart object area",
+            "type": "string",
+            "enum": [
+              "fill",
+              "contain",
+              "cover"
+            ]
+          },
+          "image_format": {
+            "default": "webp",
+            "description": "Output format",
+            "type": "string",
+            "enum": [
+              "webp",
+              "png",
+              "jpg"
+            ]
+          },
+          "image_size": {
+            "default": 2048,
+            "description": "Output width in pixels (default 2048)",
+            "type": "number",
+            "minimum": 100,
+            "maximum": 10000
+          },
+          "quality": {
+            "default": 90,
+            "description": "Compression quality for webp/jpg (default 90)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "dpi": {
+            "description": "Print resolution metadata (72-2400). Does not change pixel size -- use image_size. jpg/png recommended for widest print-tool compatibility.",
+            "type": "integer",
+            "minimum": 72,
+            "maximum": 2400
+          },
+          "rotate": {
+            "default": 0,
+            "description": "Rotate artwork in degrees",
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "flip_horizontal": {
+            "default": false,
+            "description": "Mirror artwork left-right",
+            "type": "boolean"
+          },
+          "flip_vertical": {
+            "default": false,
+            "description": "Mirror artwork top-bottom",
+            "type": "boolean"
+          },
+          "remove_background": {
+            "default": false,
+            "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+            "type": "boolean"
+          },
+          "color_hex": {
+            "description": "Optional color overlay hex code (e.g. '#FF5733')",
+            "type": "string"
+          },
+          "color_blend_mode": {
+            "description": "Blend mode for color overlay (e.g. 'multiply', 'screen', 'overlay')",
+            "type": "string"
+          },
+          "brightness": {
+            "default": 0,
+            "description": "Brightness adjustment",
+            "type": "number",
+            "minimum": -150,
+            "maximum": 150
+          },
+          "contrast": {
+            "default": 0,
+            "description": "Contrast adjustment",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "opacity": {
+            "default": 100,
+            "description": "Layer opacity percentage",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "saturation": {
+            "default": 0,
+            "description": "Saturation adjustment",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "vibrance": {
+            "default": 0,
+            "description": "Vibrance adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "blur": {
+            "default": 0,
+            "description": "Gaussian blur strength (0 to 100)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "export_label": {
+            "description": "Optional label for file naming",
+            "type": "string"
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue the render instead of waiting for it. When true the API returns 202 with a job_id immediately (no result_url yet) -- poll with get_job, or call wait_for_job to block until it finishes. Use for long renders or when running many in parallel.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mockup_uuid"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "render_photo_mockup",
+      "description": "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_photo_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Family-name spelling of render_2d_surface and render_2d_print_area, which stay available and behave exactly as they did. Use the dashboard for visual fine-tuning.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_id": {
+            "type": "string",
+            "description": "UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup)."
+          },
+          "artwork_url": {
+            "type": "string",
+            "description": "Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"
+          },
+          "remove_background": {
+            "default": false,
+            "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+            "type": "boolean"
+          },
+          "opacity": {
+            "default": 100,
+            "description": "Artwork opacity percentage (0-100)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "brightness": {
+            "default": 0,
+            "description": "Brightness adjustment (-150 to 150)",
+            "type": "number",
+            "minimum": -150,
+            "maximum": 150
+          },
+          "contrast": {
+            "default": 0,
+            "description": "Contrast adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "saturation": {
+            "default": 0,
+            "description": "Saturation adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "rotation": {
+            "description": "Rotate artwork in degrees (-360 to 360). Omit to leave it unrotated.",
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "offset_x": {
+            "description": "Pixel offset along the X axis from the anchored position. Omit to sit exactly on the anchor.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "offset_y": {
+            "description": "Pixel offset along the Y axis from the anchored position. Omit to sit exactly on the anchor.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "position": {
+            "description": "Where the artwork sits within its target. Omit to accept the renderer's anchor, which is the center.",
+            "type": "string",
+            "enum": [
+              "center",
+              "top_left",
+              "top_center",
+              "top_right",
+              "center_left",
+              "center_right",
+              "bottom_left",
+              "bottom_center",
+              "bottom_right"
+            ]
+          },
+          "image_format": {
+            "default": "webp",
+            "description": "Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'",
+            "type": "string",
+            "enum": [
+              "webp",
+              "png",
+              "jpg"
+            ]
+          },
+          "image_size": {
+            "default": 2048,
+            "description": "Output width in pixels (100-10000, default 2048)",
+            "type": "number",
+            "minimum": 100,
+            "maximum": 10000
+          },
+          "quality": {
+            "default": 90,
+            "description": "Compression quality for webp/jpg (1-100, default 90)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
+            "type": "boolean"
+          },
+          "print_area_uuid": {
+            "description": "UUID of a saved print area from get_photo_mockup's print_areas[] (its print_area_id): a bounded zone somebody drew on the product, such as a chest logo. Omit when surface_uuid is used.",
+            "type": "string"
+          },
+          "surface_uuid": {
+            "description": "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used.",
+            "type": "string"
+          },
+          "coverage": {
+            "description": "How much of the surface the artwork spans, as a percentage (10-100). Belongs to surface_uuid; sending it with print_area_uuid is refused. Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size.",
+            "type": "number",
+            "minimum": 10,
+            "maximum": 100
+          },
+          "fit": {
+            "description": "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead.",
+            "type": "string",
+            "enum": [
+              "contain",
+              "fill",
+              "cover"
+            ]
+          },
+          "width": {
+            "description": "Artwork width in pixels, drawn at that exact size instead of by coverage or fit. Send together with height, and without coverage or fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30000
+          },
+          "height": {
+            "description": "Artwork height in pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30000
+          }
+        },
+        "required": [
+          "mockup_id",
+          "artwork_url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "render_psd_mockup",
+      "description": "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs. Family-name spelling of render_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "UUID of the mockup template (from list_mockups)"
+          },
+          "smart_object_uuid": {
+            "description": "UUID of one smart object layer. Provide with artwork_url, or use smart_objects for one or more entries.",
+            "type": "string"
+          },
+          "artwork_url": {
+            "description": "Public artwork URL for smart_object_uuid. Provide both singular fields, or use smart_objects.",
+            "type": "string"
+          },
+          "smart_objects": {
+            "description": "One or more smart object overrides, each with asset or color. Do not combine with smart_object_uuid/artwork_url.",
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "description": "UUID of the smart object layer"
+                },
+                "asset": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "description": "Public URL or data URL of the artwork image",
+                      "type": "string"
+                    },
+                    "base64": {
+                      "description": "Raw base64-encoded artwork bytes without a data URL prefix",
+                      "type": "string"
+                    },
+                    "content_type": {
+                      "description": "MIME type for base64 artwork; defaults to image/png",
+                      "type": "string",
+                      "enum": [
+                        "image/png",
+                        "image/jpeg",
+                        "image/jpg",
+                        "image/webp",
+                        "image/gif"
+                      ]
+                    },
+                    "fit": {
+                      "default": "fill",
+                      "description": "How artwork fills the smart object area",
+                      "type": "string",
+                      "enum": [
+                        "fill",
+                        "contain",
+                        "cover"
+                      ]
+                    },
+                    "size": {
+                      "description": "Optional custom artwork size",
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "description": "Artwork width in pixels",
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        },
+                        "height": {
+                          "description": "Artwork height in pixels",
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 9007199254740991
+                        }
+                      }
+                    },
+                    "position": {
+                      "description": "Optional custom artwork position",
+                      "type": "object",
+                      "properties": {
+                        "top": {
+                          "description": "Top offset in pixels",
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "left": {
+                          "description": "Left offset in pixels",
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      }
+                    },
+                    "rotate": {
+                      "default": 0,
+                      "description": "Rotate artwork in degrees",
+                      "type": "number",
+                      "minimum": -360,
+                      "maximum": 360
+                    },
+                    "flip_horizontal": {
+                      "default": false,
+                      "description": "Mirror artwork left-right",
+                      "type": "boolean"
+                    },
+                    "flip_vertical": {
+                      "default": false,
+                      "description": "Mirror artwork top-bottom",
+                      "type": "boolean"
+                    },
+                    "remove_background": {
+                      "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "color": {
+                  "type": "object",
+                  "properties": {
+                    "hex": {
+                      "type": "string",
+                      "pattern": "^#[0-9a-fA-F]{6}$",
+                      "description": "Color overlay as a six-digit hex code"
+                    },
+                    "blending_mode": {
+                      "default": "normal",
+                      "description": "Blend mode for the color overlay",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "hex"
+                  ]
+                },
+                "adjustment_layers": {
+                  "description": "Optional artwork adjustments",
+                  "type": "object",
+                  "properties": {
+                    "brightness": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -150,
+                      "maximum": 150
+                    },
+                    "contrast": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -100,
+                      "maximum": 100
+                    },
+                    "opacity": {
+                      "default": 100,
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "saturation": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -100,
+                      "maximum": 100
+                    },
+                    "vibrance": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": -100,
+                      "maximum": 100
+                    },
+                    "blur": {
+                      "default": 0,
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    }
+                  }
+                }
+              },
+              "required": [
+                "uuid"
+              ]
+            }
+          },
+          "text_layers": {
+            "description": "Editable text overrides from get_mockup_details. Each entry needs exactly one of text or segments. May be used alone or with smart objects.",
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uuid": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                  "description": "UUID from get_mockup_details text_layers"
+                },
+                "text": {
+                  "description": "Replacement text for a single-style layer",
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "segments": {
+                  "description": "Styled-segment replacements for a multi-style layer",
+                  "minItems": 1,
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "index": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 31,
+                        "description": "Zero-based segment index"
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "description": "Replacement text for this segment"
+                      }
+                    },
+                    "required": [
+                      "index",
+                      "text"
+                    ]
+                  }
+                },
+                "font": {
+                  "description": "Font UUID or PostScript name for a single-style layer",
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "font_size": {
+                  "description": "Font size in pixels at the mockup's native resolution",
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000
+                },
+                "color": {
+                  "description": "Text color as a six-digit hex code",
+                  "type": "string",
+                  "pattern": "^#?[0-9a-fA-F]{6}$"
+                },
+                "stroke_color": {
+                  "description": "One outline color, or up to eight front-to-back outline colors; null keeps an original color",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^#?[0-9a-fA-F]{6}$"
+                    },
+                    {
+                      "minItems": 1,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^#?[0-9a-fA-F]{6}$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "fit": {
+                  "default": "overflow",
+                  "description": "Long-text handling for single-style point text; default overflow",
+                  "type": "string",
+                  "enum": [
+                    "shrink",
+                    "clip",
+                    "overflow"
+                  ]
+                }
+              },
+              "required": [
+                "uuid"
+              ]
+            }
+          },
+          "fit": {
+            "default": "fill",
+            "description": "How singular artwork_url fills its smart object area",
+            "type": "string",
+            "enum": [
+              "fill",
+              "contain",
+              "cover"
+            ]
+          },
+          "image_format": {
+            "default": "webp",
+            "description": "Output format",
+            "type": "string",
+            "enum": [
+              "webp",
+              "png",
+              "jpg"
+            ]
+          },
+          "image_size": {
+            "default": 2048,
+            "description": "Output width in pixels (default 2048)",
+            "type": "number",
+            "minimum": 100,
+            "maximum": 10000
+          },
+          "quality": {
+            "default": 90,
+            "description": "Compression quality for webp/jpg (default 90)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "dpi": {
+            "description": "Print resolution metadata (72-2400). Does not change pixel size -- use image_size. jpg/png recommended for widest print-tool compatibility.",
+            "type": "integer",
+            "minimum": 72,
+            "maximum": 2400
+          },
+          "rotate": {
+            "default": 0,
+            "description": "Rotate artwork in degrees",
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "flip_horizontal": {
+            "default": false,
+            "description": "Mirror artwork left-right",
+            "type": "boolean"
+          },
+          "flip_vertical": {
+            "default": false,
+            "description": "Mirror artwork top-bottom",
+            "type": "boolean"
+          },
+          "remove_background": {
+            "default": false,
+            "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+            "type": "boolean"
+          },
+          "color_hex": {
+            "description": "Optional color overlay hex code (e.g. '#FF5733')",
+            "type": "string"
+          },
+          "color_blend_mode": {
+            "description": "Blend mode for color overlay (e.g. 'multiply', 'screen', 'overlay')",
+            "type": "string"
+          },
+          "brightness": {
+            "default": 0,
+            "description": "Brightness adjustment",
+            "type": "number",
+            "minimum": -150,
+            "maximum": 150
+          },
+          "contrast": {
+            "default": 0,
+            "description": "Contrast adjustment",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "opacity": {
+            "default": 100,
+            "description": "Layer opacity percentage",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "saturation": {
+            "default": 0,
+            "description": "Saturation adjustment",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "vibrance": {
+            "default": 0,
+            "description": "Vibrance adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "blur": {
+            "default": 0,
+            "description": "Gaussian blur strength (0 to 100)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "export_label": {
+            "description": "Optional label for file naming",
+            "type": "string"
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue the render instead of waiting for it. When true the API returns 202 with a job_id immediately (no result_url yet) -- poll with get_job, or call wait_for_job to block until it finishes. Use for long renders or when running many in parallel.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mockup_uuid"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "render_video",
+      "description": "Create a short AI video from either a mockup with artwork or a public image URL. Supply exactly one input mode. Always async: returns a job_id immediately for get_job or wait_for_job. Credit cost depends on clip length, audio, and the automatically selected quality. Unsupported durations are rejected.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "description": "RENDER MODE: UUID of the mockup to animate (from list_mockups or upload_psd). Required in render mode. In raw-image mode it is an optional association (groups the clip under that mockup's 'Past clips').",
+            "type": "string"
+          },
+          "smart_object_uuid": {
+            "description": "RENDER MODE: UUID of the smart object layer to place artwork on (from get_mockup_details). Required in render mode; omit in raw-image mode.",
+            "type": "string"
+          },
+          "artwork_url": {
+            "description": "RENDER MODE: public URL of the artwork image (PNG/JPG/WebP) to place on the mockup before animating. Provide this OR artwork_base64. Omit in raw-image mode.",
+            "type": "string"
+          },
+          "artwork_base64": {
+            "description": "RENDER MODE: raw base64-encoded artwork bytes (no data: prefix). Provide this OR artwork_url.",
+            "type": "string"
+          },
+          "artwork_content_type": {
+            "description": "MIME type for artwork_base64 (defaults to image/png if omitted).",
+            "type": "string",
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp",
+              "image/gif"
+            ]
+          },
+          "image_url": {
+            "description": "RAW-IMAGE MODE: a public https png/jpg URL to animate without a mockup. Supply this OR (mockup_uuid + smart_object_uuid + artwork), never both.",
+            "type": "string"
+          },
+          "fit": {
+            "default": "fill",
+            "description": "RENDER MODE: how artwork fills the smart object area in the still frame",
+            "type": "string",
+            "enum": [
+              "fill",
+              "contain",
+              "cover"
+            ]
+          },
+          "asset_width": {
+            "description": "RENDER MODE: custom artwork width in pixels (overrides fit sizing).",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "asset_height": {
+            "description": "RENDER MODE: custom artwork height in pixels (overrides fit sizing).",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "asset_top": {
+            "description": "RENDER MODE: artwork top offset in pixels within the smart object area.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "asset_left": {
+            "description": "RENDER MODE: artwork left offset in pixels within the smart object area.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "duration_seconds": {
+            "default": 4,
+            "description": "Clip length in seconds. Unsupported values are rejected. Longer clips cost more credits.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          },
+          "audio": {
+            "default": false,
+            "description": "Generate audio. Default off; enabling it may cost more credits.",
+            "type": "boolean"
+          },
+          "motion": {
+            "default": "ambient",
+            "description": "'ambient' = subtle looping hero motion that keeps the print readable; 'showcase' = one deliberate camera/product move.",
+            "type": "string",
+            "enum": [
+              "ambient",
+              "showcase"
+            ]
+          },
+          "image_format": {
+            "default": "webp",
+            "description": "Output format of the still input frame",
+            "type": "string",
+            "enum": [
+              "webp",
+              "png",
+              "jpg"
+            ]
+          },
+          "image_size": {
+            "default": 2048,
+            "description": "Width in pixels of the still input frame (default 2048)",
+            "type": "number",
+            "minimum": 100,
+            "maximum": 10000
+          },
+          "quality": {
+            "default": 90,
+            "description": "Compression quality for the still input frame (webp/jpg, default 90)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "webhook_url": {
+            "description": "Optional completion webhook URL. Best-effort push; polling get_job remains the source of truth.",
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "replay_webhook_delivery",
+      "description": "Replay a single webhook delivery while preserving its event identity, e.g. after fixing your endpoint. Get delivery_id from list_webhook_deliveries.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "description": "The id of the webhook endpoint (from list_webhook_endpoints)"
+          },
+          "delivery_id": {
+            "type": "string",
+            "description": "The id of the delivery to replay (from list_webhook_deliveries)"
+          }
+        },
+        "required": [
+          "endpoint_id",
+          "delivery_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "rotate_webhook_secret",
+      "description": "Rotate the signing secret for a webhook endpoint. A new secret is returned IN FULL exactly once -- update your verifier with it. The old secret stops being valid.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "description": "The id of the webhook endpoint to rotate (from list_webhook_endpoints)"
+          }
+        },
+        "required": [
+          "endpoint_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "test_webhook_endpoint",
+      "description": "Send a signed webhook.test event to verify endpoint reachability and signature handling. Returns a test job_id; check the result with list_webhook_deliveries.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "description": "The id of the webhook endpoint to test (from list_webhook_endpoints)"
+          }
+        },
+        "required": [
+          "endpoint_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_2d_print_areas",
+      "description": "Replace a 2D mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_id": {
+            "type": "string",
+            "description": "UUID of the 2D mockup to update"
+          },
+          "print_areas": {
+            "minItems": 0,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "points": {
+                  "minItems": 4,
+                  "maxItems": 4,
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  },
+                  "description": "Four [x, y] points in top-left, top-right, bottom-right, bottom-left order"
+                },
+                "name": {
+                  "description": "Optional display name for this print area",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "points"
+              ]
+            },
+            "description": "Replacement print areas (0-8 four-point quads, each with an optional name)"
+          }
+        },
+        "required": [
+          "mockup_id",
+          "print_areas"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_mockup",
+      "description": "Rename a mockup template.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "The UUID of the mockup to rename"
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name for the mockup"
+          }
+        },
+        "required": [
+          "mockup_uuid",
+          "name"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_photo_mockup_print_areas",
+      "description": "Replace a 2D mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits. Family-name spelling of update_2d_print_areas: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_id": {
+            "type": "string",
+            "description": "UUID of the 2D mockup to update"
+          },
+          "print_areas": {
+            "minItems": 0,
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "points": {
+                  "minItems": 4,
+                  "maxItems": 4,
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  },
+                  "description": "Four [x, y] points in top-left, top-right, bottom-right, bottom-left order"
+                },
+                "name": {
+                  "description": "Optional display name for this print area",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "points"
+              ]
+            },
+            "description": "Replacement print areas (0-8 four-point quads, each with an optional name)"
+          }
+        },
+        "required": [
+          "mockup_id",
+          "print_areas"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_psd_mockup",
+      "description": "Rename a mockup template. Family-name spelling of update_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "The UUID of the mockup to rename"
+          },
+          "name": {
+            "type": "string",
+            "description": "New display name for the mockup"
+          }
+        },
+        "required": [
+          "mockup_uuid",
+          "name"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "update_webhook_endpoint",
+      "description": "Update a webhook endpoint in place: change its url, description, subscribed event_types, its event_naming pin, or enable/disable it (enabled:false pauses deliveries without losing the signing secret). All fields optional -- only the ones you pass are changed. The secret is NOT rotated or returned here.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "description": "The id of the webhook endpoint to update (from list_webhook_endpoints)"
+          },
+          "url": {
+            "description": "New https endpoint URL (publicly routable; private/loopback hosts are rejected)",
+            "type": "string"
+          },
+          "description": {
+            "description": "New human-readable label",
+            "type": "string",
+            "maxLength": 255
+          },
+          "event_types": {
+            "description": "Replacement list of subscribed event types. Pass an empty array to subscribe to ALL events.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "render.succeeded",
+                "render.failed",
+                "upload.succeeded",
+                "video.succeeded",
+                "video.failed",
+                "2d_mockup.ready",
+                "2d_mockup.rejected",
+                "2d_mockup.failed",
+                "2d_render.succeeded",
+                "2d_render.failed",
+                "photo_mockup.ready",
+                "photo_mockup.rejected",
+                "photo_mockup.failed",
+                "photo_mockup_render.succeeded",
+                "photo_mockup_render.failed",
+                "webhook.test"
+              ]
+            }
+          },
+          "event_naming": {
+            "description": "Re-pin which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to keep the endpoint's current pin. Sent on its own, the re-pin re-spells the stored subscription list to match. Move an endpoint to 'current' only once its receiver handles the new names.",
+            "type": "string",
+            "enum": [
+              "legacy",
+              "current"
+            ]
+          },
+          "enabled": {
+            "description": "Set false to pause deliveries (secret preserved), true to resume",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "endpoint_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "upload_local_file",
+      "description": "Upload a file from this machine and get back a URL for it. Use this when the file exists on disk and a tool needs a URL: pass the returned file_url as psd_file_url to upload_psd, or as artwork_url to any render tool. Set kind to \"psd\" for a .psd/.psb template or \"artwork\" for a .png/.jpg/.webp/.gif image. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the file on this machine. Relative paths resolve against the server's working directory."
+          },
+          "kind": {
+            "default": "psd",
+            "description": "\"psd\" for a .psd or .psb template, \"artwork\" for an image.",
+            "type": "string",
+            "enum": [
+              "psd",
+              "artwork"
+            ]
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "upload_psd",
+      "description": "Upload a Photoshop PSD/PSB file as a new mockup template. The PSD must have at least one Smart Object layer. Processing takes 5-30 seconds.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "psd_file_url": {
+            "type": "string",
+            "description": "Public URL to a .psd or .psb file (up to Adobe's official PSD file size limit)"
+          },
+          "psd_name": {
+            "description": "Display name for the template (auto-generated from filename if omitted)",
+            "type": "string"
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue the upload instead of blocking. When true the API returns 202 with a job_id immediately -- poll with get_job (or wait_for_job) to learn when processing finishes and get the new mockup_uuid. Always free (0 credits), sync or async.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "psd_file_url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "wait_for_job",
+      "description": "Poll any async render, video, upload, or photo mockup (2D) job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "description": "The job_id to wait on (from an async submission or render_video)"
+          },
+          "poll_interval_seconds": {
+            "default": 3,
+            "description": "Seconds between status checks (1-30, default 3)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30
+          },
+          "timeout_seconds": {
+            "default": 300,
+            "description": "Give up after this many seconds if the job has not finished (5-900, default 300)",
+            "type": "number",
+            "minimum": 5,
+            "maximum": 900
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    }
+  ],
+  "prompts": [],
+  "resources": []
+}
