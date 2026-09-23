@@ -175,7 +175,7 @@ API request identifies this package as `mcp-stdio/<version>` in its
 ## Pricing and account limits
 
 Pay as you go is the entry tier, and it has no subscription. One PSD render costs
-**$0.10**, so $1 covers 10 of them. The minimum first payment is **$5**. 2D Mockups
+**$0.05**, so $1 covers 20 of them. The minimum first payment is **$5**. 2D Mockups
 and video are priced by what they cost to produce rather than at the flat render
 rate, which is why the Credits column above is not uniform.
 
