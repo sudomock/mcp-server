@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.11.0] - 2026-09-24
+
+### Added
+
+- The package and the hosted server at `mcp.sudomock.com` now serve the same
+  tool names. Six names the hosted server already had are added here:
+  `list_fonts`, `create_upload_url` and `replay_failed_webhook_deliveries` as
+  new tools, and `get_2d_mockup_details`, `send_webhook_test_event` and
+  `render_2d_mockup` as second names for existing tools. No tool, name or
+  argument was removed or changed.
+
 ## [2.10.1] - 2026-09-24
 
 ### Changed
