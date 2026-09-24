@@ -1069,6 +1069,114 @@ const textLayerInputSchema = z
     }
   });
 
+const LAYER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const HEX_COLOR = /^#?[0-9a-fA-F]{6}$/;
+
+/** One outline color, or up to eight front to back; null keeps an authored color. */
+function outlineColors() {
+  return z.union([
+    z.string().regex(HEX_COLOR),
+    z.array(z.string().regex(HEX_COLOR).nullable()).min(1).max(8),
+  ]);
+}
+
+// One text layer and one group written as flat arguments: the names the hosted
+// server publishes on render_mockup. They become a single text_layers entry and
+// a single group_layers entry, built by the same rules the hosted server builds
+// them with (singleTextLayer and singleGroupLayer below), so the same flat
+// arguments put the same text_layers and group_layers entries on the wire from
+// either server.
+const SINGLE_LAYER_SHORTCUT = {
+  text_layer_uuid: z
+    .string()
+    .regex(LAYER_UUID)
+    .optional()
+    .describe("UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; a shorthand for one text_layers entry."),
+  text: z
+    .string()
+    .min(1)
+    .max(500)
+    .optional()
+    .describe("Replacement text for the text_layer_uuid layer when it has one style (segment_count 1). Use text_segments for a styled layer."),
+  text_segments: z
+    .array(
+      z.object({
+        index: z.number().int().min(0).max(31).describe("Zero-based segment index"),
+        text: z.string().min(1).max(200).describe("Replacement text for this segment"),
+      })
+    )
+    .min(1)
+    .max(32)
+    .optional()
+    .describe("For a styled text_layer_uuid layer (segment_count above 1): {index, text} entries. Listed segments are replaced, the rest keep their text, and each keeps its own styling. Used instead of text."),
+  text_font: z.string().max(255).optional().describe("Font UUID or PostScript name from list_fonts. Single-style layers only. Omit to keep the layer's font."),
+  text_font_size: z.number().positive().max(2000).optional().describe("Font size in pixels at the mockup's native resolution. Single-style layers only. Omit to keep the original size."),
+  text_color: z.string().regex(HEX_COLOR).optional().describe("Text color as a six-digit hex code, e.g. '#1A1A1A'. Single-style layers only. Omit to keep the original color."),
+  text_stroke_color: outlineColors()
+    .optional()
+    .describe("Colors for the text layer's own outlines: one hex code for the front outline, or up to eight front to back; null keeps an authored color. Single-style layers only."),
+  text_fit: z
+    .enum(["shrink", "clip", "overflow"])
+    .optional()
+    .describe("Long-text handling for single-style point text: 'overflow' keeps the designed size, 'shrink' scales it down to fit, 'clip' cuts it at the last character that fits. Omit for 'overflow'."),
+  text_vertical_align: z
+    .enum(["top", "bottom", "center"])
+    .optional()
+    .describe("Where text that text_fit 'shrink' scaled down sits in the original area: 'top' (the default), 'center' or 'bottom'. Single-style layers only."),
+  group_layer_uuid: z
+    .string()
+    .regex(LAYER_UUID)
+    .optional()
+    .describe("UUID of an editable group layer from the mockup's group_layers. Send with group_stroke_color."),
+  group_stroke_color: outlineColors()
+    .optional()
+    .describe("Colors for that group's outlines: one hex code for the front outline, or up to eight front to back; null keeps an authored color. The change affects everything inside the group."),
+};
+
+type SingleLayerShortcut = {
+  text_layer_uuid?: string;
+  text?: string;
+  text_segments?: Array<{ index: number; text: string }>;
+  text_font?: string;
+  text_font_size?: number;
+  text_color?: string;
+  text_stroke_color?: string | Array<string | null>;
+  text_fit?: string;
+  text_vertical_align?: string;
+  group_layer_uuid?: string;
+  group_stroke_color?: string | Array<string | null>;
+};
+
+/**
+ * The text_layers entry the flat text arguments describe, or undefined when
+ * they describe none. The hosted server's rules, one for one: the entry needs a
+ * layer UUID and either segments or text; segments win when both arrive and
+ * then travel without styling, because each segment keeps its own; a styling
+ * argument left out is left off the wire.
+ */
+function singleTextLayer(args: SingleLayerShortcut): Record<string, unknown> | undefined {
+  if (!args.text_layer_uuid || (!args.text_segments && !args.text)) return undefined;
+  const layer: Record<string, unknown> = { uuid: args.text_layer_uuid };
+  if (args.text_segments) {
+    layer.segments = args.text_segments;
+    return layer;
+  }
+  layer.text = args.text;
+  if (args.text_font) layer.font = args.text_font;
+  if (args.text_font_size) layer.font_size = args.text_font_size;
+  if (args.text_color) layer.color = args.text_color;
+  if (args.text_stroke_color) layer.stroke_color = args.text_stroke_color;
+  if (args.text_fit) layer.fit = args.text_fit;
+  if (args.text_vertical_align) layer.vertical_align = args.text_vertical_align;
+  return layer;
+}
+
+/** The group_layers entry the flat group arguments describe; both halves are needed. */
+function singleGroupLayer(args: SingleLayerShortcut): Record<string, unknown> | undefined {
+  if (!args.group_layer_uuid || args.group_stroke_color === undefined) return undefined;
+  return { uuid: args.group_layer_uuid, stroke_color: args.group_stroke_color };
+}
+
 server.tool(
   "render_mockup",
   "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
@@ -1087,6 +1195,7 @@ server.tool(
       .max(50)
       .optional()
       .describe("Editable text overrides from get_mockup_details. Each entry needs exactly one of text or segments. May be used alone or with smart objects."),
+    ...SINGLE_LAYER_SHORTCUT,
     fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How singular artwork_url fills its smart object area"),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (default 2048)"),
@@ -1121,8 +1230,15 @@ server.tool(
     if (args.smart_objects && hasSmartObjectUuid) {
       throw new Error("Provide smart_objects or smart_object_uuid/artwork_url, not both.");
     }
-    if (!args.smart_objects && !hasSmartObjectUuid && !args.text_layers) {
-      throw new Error("Provide smart_objects, smart_object_uuid/artwork_url, or text_layers.");
+    const shortcutTextLayer = singleTextLayer(args);
+    const shortcutGroupLayer = singleGroupLayer(args);
+    if (args.text_layers && shortcutTextLayer) {
+      throw new Error("Provide text_layers or text_layer_uuid with text/text_segments, not both.");
+    }
+    if (!args.smart_objects && !hasSmartObjectUuid && !args.text_layers && !shortcutTextLayer && !shortcutGroupLayer) {
+      throw new Error(
+        "Provide smart_objects, smart_object_uuid/artwork_url, text_layers, text_layer_uuid with text/text_segments, or group_layer_uuid with group_stroke_color."
+      );
     }
 
     const smartObjects: Array<Record<string, unknown>> = args.smart_objects
@@ -1179,6 +1295,8 @@ server.tool(
     };
     if (smartObjects.length) body.smart_objects = smartObjects;
     if (args.text_layers) body.text_layers = args.text_layers;
+    else if (shortcutTextLayer) body.text_layers = [shortcutTextLayer];
+    if (shortcutGroupLayer) body.group_layers = [shortcutGroupLayer];
 
     if (args.export_label) {
       body.export_label = args.export_label;
@@ -1412,6 +1530,8 @@ type TwoDSharedArgs = {
   image_size: number;
   quality: number;
   is_async: boolean;
+  // Offered only by render_photo_mockup and render_2d_mockup; see PHOTO_BLEND_MODE.
+  blend_mode?: string;
 };
 
 // The option a caller can write on one of these two tools but not the other,
@@ -1542,6 +1662,7 @@ async function renderTwoD(
         artwork_url: args.artwork_url,
         ...(args.remove_background ? { remove_background: true } : {}),
         adjustments: {
+          ...(args.blend_mode === undefined ? {} : { blend_mode: args.blend_mode }),
           opacity: args.opacity,
           brightness: args.brightness,
           contrast: args.contrast,
@@ -1983,6 +2104,10 @@ server.tool(
       .enum(["ambient", "showcase"])
       .default("ambient")
       .describe("'ambient' = subtle looping hero motion that keeps the print readable; 'showcase' = one deliberate camera/product move."),
+    advanced_model: z
+      .string()
+      .optional()
+      .describe("Advanced override for the automatic quality selection. Unsupported values are rejected. Omit for automatic selection (recommended)."),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format of the still input frame"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Width in pixels of the still input frame (default 2048)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for the still input frame (webp/jpg, default 90)"),
@@ -1997,6 +2122,7 @@ server.tool(
       audio: args.audio,
       motion: args.motion,
     };
+    if (args.advanced_model) video.advanced_model = args.advanced_model;
 
     const body: Record<string, unknown> = {
       export_options: {
@@ -2555,12 +2681,15 @@ for (const [existing, secondName] of [
 // the sizing rules, the refusals and the request itself are the same functions
 // `render_2d_surface` and `render_2d_print_area` call, so there is one
 // implementation of a 2D render on this side no matter which name reaches it.
+// The one field the two single-target tools do not offer is blend_mode, which
+// the hosted server publishes on this tool and on render_2d_mockup.
 
 const ONE_TARGET = "Provide exactly one of print_area_uuid or surface_uuid";
 
 // Every shared field belongs to this tool too; only the mockup's own argument
 // is spelled differently, as `mockup_id` -- the name this tool was published
-// with, and the name the photo mockup tools return the id under.
+// with, and the name the photo mockup tools return the id under. `mockup_uuid`
+// is accepted beside it (see renderPhotoMockupInput).
 const { mockup_uuid: _twoDMockupUuid, ...PHOTO_RENDER_SHARED } = TWO_D_SHARED;
 
 // The target and the dials that size it. They are the same fields whichever
@@ -2629,13 +2758,46 @@ function photoRenderInput<Shape extends z.ZodRawShape>(shape: Shape) {
   });
 }
 
+// The blend the hosted server publishes on its one-tool photo mockup render,
+// under both of its names. Left out, nothing is sent and the API's default,
+// 'multiply', applies; the values are the ones the API accepts.
+const PHOTO_BLEND_MODE = {
+  blend_mode: z
+    .enum(["multiply", "normal", "screen", "lighten", "soft_light", "overlay", "darken"])
+    .optional()
+    .describe(
+      "How the artwork sits on the product: 'multiply' (the default) keeps the material texture visible, 'normal' reproduces the artwork colors exactly. 'screen', 'lighten', 'soft_light', 'overlay' and 'darken' are also accepted."
+    ),
+};
+
+// The mockup travels as `mockup_id`, the name this tool was published with, or
+// as `mockup_uuid`, the name the hosted server publishes it under. One of the
+// two is needed; both are accepted when they agree.
 const renderPhotoMockupInput = photoRenderInput({
   mockup_id: z
     .string()
-    .describe("UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup)."),
+    .optional()
+    .describe("UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup). Send this or mockup_uuid."),
+  mockup_uuid: z
+    .string()
+    .optional()
+    .describe("Same as mockup_id, under the name the hosted server uses. Send this or mockup_id; if both are sent they must match."),
   ...PHOTO_RENDER_SHARED,
   ...PHOTO_RENDER_TARGET,
+  ...PHOTO_BLEND_MODE,
 });
+
+/** The photo mockup a render_photo_mockup call names, by either spelling. */
+function photoMockupId(mockupId: string | undefined, mockupUuid: string | undefined): string {
+  if (mockupId !== undefined && mockupUuid !== undefined && mockupId !== mockupUuid) {
+    throw new Error("mockup_id and mockup_uuid name the same photo mockup but hold different values. Send one of them.");
+  }
+  const id = mockupId ?? mockupUuid;
+  if (id === undefined) {
+    throw new Error("Provide mockup_id (or mockup_uuid): the UUID of the photo mockup to render.");
+  }
+  return id;
+}
 
 type PhotoRenderArgs = Omit<TwoDSharedArgs, "mockup_uuid"> & {
   print_area_uuid?: string;
@@ -2686,7 +2848,7 @@ server.registerTool(
       "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_photo_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Family-name spelling of render_2d_surface and render_2d_print_area, which stay available and behave exactly as they did. Use the dashboard for visual fine-tuning.",
     inputSchema: renderPhotoMockupInput,
   },
-  async (args) => renderNamedTarget(args, args.mockup_id)
+  async (args) => renderNamedTarget(args, photoMockupId(args.mockup_id, args.mockup_uuid))
 );
 
 // ---------------------------------------------------------------------------
@@ -2706,6 +2868,7 @@ server.registerTool(
     inputSchema: photoRenderInput({
       ...TWO_D_SHARED,
       ...PHOTO_RENDER_TARGET,
+      ...PHOTO_BLEND_MODE,
     }),
   },
   async (args) => renderNamedTarget(args, args.mockup_uuid)

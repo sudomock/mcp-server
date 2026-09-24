@@ -241,15 +241,16 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
         assert.equal(props[anchor].default, undefined, `${anchor} carries a client-side default`);
       }
     }
-    const video = schema("render_video");
-    assert.ok(!("advanced_model" in (video.properties ?? {})));
+    // advanced_model is offered now: the hosted server and this package take
+    // the same arguments, and the API publishes the field itself. What stays
+    // out of the copy is the names behind it, listed below.
 
     const publicToolCopy = JSON.stringify(tools).toLowerCase();
     // Terimler kodlu: bu depo PUBLIC ve liste, gizlemeye calistigi her ismi
     // (saglayici adlari, boru hatti kavramlari) tek yerde toplayarak sizintinin
     // kendisi haline geliyordu. Assert davranisi ayni.
     const FORBIDDEN = Buffer.from(
-      "dmVvLGtsaW5nLHNlZWRhbmNlLGJpcmVmbmV0LGZhbC5haSxpZGVvZ3JhbSxzZXJ2ZXItc2lkZSBkb3dubG9hZCxhdXRvLXJvdXRlcixjZG4gdXJsLG1hc2tfdXVpZCxyZWdpb25faW5kZXgsc2VnbWVudGF0aW9uLGRpc3BsYWNlbWVudCxzaGFkaW5nLGFkdmFuY2VkX21vZGVs",
+      "dmVvLGtsaW5nLHNlZWRhbmNlLGJpcmVmbmV0LGZhbC5haSxpZGVvZ3JhbSxzZXJ2ZXItc2lkZSBkb3dubG9hZCxhdXRvLXJvdXRlcixjZG4gdXJsLG1hc2tfdXVpZCxyZWdpb25faW5kZXgsc2VnbWVudGF0aW9uLGRpc3BsYWNlbWVudCxzaGFkaW5n",
       "base64",
     ).toString().split(",");
     for (const forbidden of FORBIDDEN) {
