@@ -1135,7 +1135,6 @@
           },
           "smart_objects": {
             "description": "Smart objects to fill, each with a uuid and asset or color. Works on its own; with smart_object_uuid these entries follow that one.",
-            "minItems": 1,
             "type": "array",
             "items": {
               "type": "object",
@@ -1304,7 +1303,6 @@
           },
           "text_layers": {
             "description": "Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one.",
-            "minItems": 1,
             "maxItems": 50,
             "type": "array",
             "items": {
@@ -1849,7 +1847,6 @@
           },
           "smart_objects": {
             "description": "Smart objects to fill, each with a uuid and asset or color. Works on its own; with smart_object_uuid these entries follow that one.",
-            "minItems": 1,
             "type": "array",
             "items": {
               "type": "object",
@@ -2018,7 +2015,6 @@
           },
           "text_layers": {
             "description": "Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one.",
-            "minItems": 1,
             "maxItems": 50,
             "type": "array",
             "items": {
