@@ -953,6 +953,14 @@ server.tool(
 // Tool 5: render_mockup
 // ---------------------------------------------------------------------------
 
+// Every name the render API takes for how artwork meets a smart object: 'fill',
+// 'fit' and 'crop', and 'contain' and 'cover', the older names for 'fit' and
+// 'crop', which it still accepts. A name is sent as given. This package keeps
+// 'fill' as its default when fit is left out.
+const SMART_OBJECT_FIT_MODES = ["fill", "fit", "crop", "contain", "cover"] as const;
+const SMART_OBJECT_FIT_HELP =
+  "'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fill'.";
+
 const smartObjectInputSchema = z
   .object({
     uuid: z
@@ -967,18 +975,21 @@ const smartObjectInputSchema = z
           .enum(["image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"])
           .optional()
           .describe("MIME type for base64 artwork; defaults to image/png"),
-        fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How artwork fills the smart object area"),
+        fit: z
+          .enum(SMART_OBJECT_FIT_MODES)
+          .default("fill")
+          .describe(`How the artwork meets the smart object area. ${SMART_OBJECT_FIT_HELP}`),
         size: z
           .object({
-            width: z.number().int().min(1).optional().describe("Artwork width in pixels"),
-            height: z.number().int().min(1).optional().describe("Artwork height in pixels"),
+            width: z.number().min(1).optional().describe("Artwork width in pixels, at least 1. Fractions are accepted."),
+            height: z.number().min(1).optional().describe("Artwork height in pixels, at least 1. Fractions are accepted."),
           })
           .optional()
           .describe("Optional custom artwork size"),
         position: z
           .object({
-            top: z.number().int().optional().describe("Top offset in pixels"),
-            left: z.number().int().optional().describe("Left offset in pixels"),
+            top: z.number().optional().describe("Top offset in pixels. Fractions are accepted."),
+            left: z.number().optional().describe("Left offset in pixels. Fractions are accepted."),
           })
           .optional()
           .describe("Optional custom artwork position"),
@@ -994,9 +1005,20 @@ const smartObjectInputSchema = z
       .optional(),
     color: z
       .object({
-        hex: z.string().regex(/^#[0-9a-fA-F]{6}$/).describe("Color overlay as a six-digit hex code"),
+        hex: z
+          .string()
+          .regex(/^#[0-9a-fA-F]{6}$/)
+          .optional()
+          .describe("Color overlay as a six-digit hex code, e.g. '#FF5733'. Send this or label."),
+        label: z
+          .string()
+          .min(1)
+          .max(32)
+          .optional()
+          .describe("The name of a color saved on this mockup, e.g. 'blue jean', matched exactly. Send this instead of hex."),
         blending_mode: z.string().default("normal").describe("Blend mode for the color overlay"),
       })
+      .refine((color) => (color.hex === undefined) !== (color.label === undefined), "Provide exactly one of color.hex or color.label")
       .optional(),
     adjustment_layers: z
       .object({
@@ -1044,6 +1066,10 @@ const textLayerInputSchema = z
       .enum(["shrink", "clip", "overflow"])
       .default("overflow")
       .describe("Long-text handling for single-style point text; default overflow"),
+    vertical_align: z
+      .enum(["top", "bottom", "center"])
+      .optional()
+      .describe("Where text that fit 'shrink' scaled down sits in the original area: 'top' (the default), 'center' or 'bottom'. Single-style point text only."),
   })
   .superRefine((layer, ctx) => {
     if ((layer.text === undefined) === (layer.segments === undefined)) {
@@ -1196,7 +1222,10 @@ server.tool(
       .optional()
       .describe("Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one."),
     ...SINGLE_LAYER_SHORTCUT,
-    fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How singular artwork_url fills its smart object area"),
+    fit: z
+      .enum(SMART_OBJECT_FIT_MODES)
+      .default("fill")
+      .describe(`How the singular artwork_url meets its smart object area. ${SMART_OBJECT_FIT_HELP}`),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (default 2048)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (default 90)"),
