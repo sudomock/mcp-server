@@ -2216,10 +2216,11 @@ server.tool(
 // 2d_render.failed). Both spellings are subscribable; which one a delivery
 // carries is the endpoint's `event_naming` pin ('current' = family names,
 // 'legacy' = 2d_* names), and the payload's `kind` follows the same pin.
-// Endpoints created before the pin existed are 'legacy'; new endpoints default
-// to 'current' on the API side. The pin is set at create and changed at update;
-// a re-pin sent alone re-spells the stored subscription list to match. The list
-// below is in the API's own order.
+// Endpoints created before the pin existed are 'legacy'. A create without a pin
+// takes 'current' only when event_types names photo mockup events by their
+// family names alone, and 'legacy' otherwise. The pin is set at create and
+// changed at update; a re-pin sent alone re-spells the stored subscription list
+// to match. The list below is in the API's own order.
 // ---------------------------------------------------------------------------
 
 const WEBHOOK_EVENT_TYPES = [
@@ -2255,7 +2256,7 @@ server.tool(
     event_naming: z
       .enum(WEBHOOK_EVENT_NAMINGS)
       .optional()
-      .describe("Which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to take the API default ('current'). Pick 'legacy' only for a receiver written against the old names."),
+      .describe("Which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to let event_types decide: 'current' when it names photo mockup events by their family names only, otherwise 'legacy' (an empty list, a list of events spelled the same either way, or any legacy name). Pick 'legacy' only for a receiver written against the old names."),
     description: z.string().max(255).optional().describe("Optional human-readable label for this endpoint"),
   },
   async ({ url, event_types, event_naming, description }) => {
