@@ -788,11 +788,13 @@
             "maximum": 100
           },
           "fit": {
-            "description": "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead.",
+            "description": "How the artwork meets the print area, which it always fills edge to edge: 'fit' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'crop' fills and crops the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'fit'. To sit inside the area with room around it, send width and height instead.",
             "type": "string",
             "enum": [
-              "contain",
               "fill",
+              "fit",
+              "crop",
+              "contain",
               "cover"
             ]
           },
@@ -944,11 +946,13 @@
             "description": "UUID of a saved print area from get_2d_mockup's print_areas[] (its print_area_id)."
           },
           "fit": {
-            "description": "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead.",
+            "description": "How the artwork meets the print area, which it always fills edge to edge: 'fit' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'crop' fills and crops the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Leave it out to get 'fit'. To sit inside the area with room around it, send width and height instead.",
             "type": "string",
             "enum": [
-              "contain",
               "fill",
+              "fit",
+              "crop",
+              "contain",
               "cover"
             ]
           },
@@ -1796,11 +1800,13 @@
             "maximum": 100
           },
           "fit": {
-            "description": "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead.",
+            "description": "How the artwork meets the print area, which it always fills edge to edge: 'fit' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'crop' fills and crops the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'fit'. To sit inside the area with room around it, send width and height instead.",
             "type": "string",
             "enum": [
-              "contain",
               "fill",
+              "fit",
+              "crop",
+              "contain",
               "cover"
             ]
           },
@@ -2428,10 +2434,12 @@
           },
           "fit": {
             "default": "fill",
-            "description": "RENDER MODE: how artwork fills the smart object area in the still frame",
+            "description": "RENDER MODE: how the artwork meets the smart object area in the still frame. 'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fill'.",
             "type": "string",
             "enum": [
               "fill",
+              "fit",
+              "crop",
               "contain",
               "cover"
             ]
