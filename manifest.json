@@ -1168,10 +1168,12 @@
                     },
                     "fit": {
                       "default": "fill",
-                      "description": "How artwork fills the smart object area",
+                      "description": "How the artwork meets the smart object area. 'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fill'.",
                       "type": "string",
                       "enum": [
                         "fill",
+                        "fit",
+                        "crop",
                         "contain",
                         "cover"
                       ]
@@ -1181,16 +1183,14 @@
                       "type": "object",
                       "properties": {
                         "width": {
-                          "description": "Artwork width in pixels",
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 9007199254740991
+                          "description": "Artwork width in pixels, at least 1. Fractions are accepted.",
+                          "type": "number",
+                          "minimum": 1
                         },
                         "height": {
-                          "description": "Artwork height in pixels",
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 9007199254740991
+                          "description": "Artwork height in pixels, at least 1. Fractions are accepted.",
+                          "type": "number",
+                          "minimum": 1
                         }
                       }
                     },
@@ -1199,16 +1199,12 @@
                       "type": "object",
                       "properties": {
                         "top": {
-                          "description": "Top offset in pixels",
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
+                          "description": "Top offset in pixels. Fractions are accepted.",
+                          "type": "number"
                         },
                         "left": {
-                          "description": "Left offset in pixels",
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
+                          "description": "Left offset in pixels. Fractions are accepted.",
+                          "type": "number"
                         }
                       }
                     },
@@ -1239,19 +1235,22 @@
                   "type": "object",
                   "properties": {
                     "hex": {
+                      "description": "Color overlay as a six-digit hex code, e.g. '#FF5733'. Send this or label.",
                       "type": "string",
-                      "pattern": "^#[0-9a-fA-F]{6}$",
-                      "description": "Color overlay as a six-digit hex code"
+                      "pattern": "^#[0-9a-fA-F]{6}$"
+                    },
+                    "label": {
+                      "description": "The name of a color saved on this mockup, e.g. 'blue jean', matched exactly. Send this instead of hex.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
                     },
                     "blending_mode": {
                       "default": "normal",
                       "description": "Blend mode for the color overlay",
                       "type": "string"
                     }
-                  },
-                  "required": [
-                    "hex"
-                  ]
+                  }
                 },
                 "adjustment_layers": {
                   "description": "Optional artwork adjustments",
@@ -1396,6 +1395,15 @@
                     "clip",
                     "overflow"
                   ]
+                },
+                "vertical_align": {
+                  "description": "Where text that fit 'shrink' scaled down sits in the original area: 'top' (the default), 'center' or 'bottom'. Single-style point text only.",
+                  "type": "string",
+                  "enum": [
+                    "top",
+                    "bottom",
+                    "center"
+                  ]
                 }
               },
               "required": [
@@ -1532,10 +1540,12 @@
           },
           "fit": {
             "default": "fill",
-            "description": "How singular artwork_url fills its smart object area",
+            "description": "How the singular artwork_url meets its smart object area. 'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fill'.",
             "type": "string",
             "enum": [
               "fill",
+              "fit",
+              "crop",
               "contain",
               "cover"
             ]
@@ -1880,10 +1890,12 @@
                     },
                     "fit": {
                       "default": "fill",
-                      "description": "How artwork fills the smart object area",
+                      "description": "How the artwork meets the smart object area. 'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fill'.",
                       "type": "string",
                       "enum": [
                         "fill",
+                        "fit",
+                        "crop",
                         "contain",
                         "cover"
                       ]
@@ -1893,16 +1905,14 @@
                       "type": "object",
                       "properties": {
                         "width": {
-                          "description": "Artwork width in pixels",
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 9007199254740991
+                          "description": "Artwork width in pixels, at least 1. Fractions are accepted.",
+                          "type": "number",
+                          "minimum": 1
                         },
                         "height": {
-                          "description": "Artwork height in pixels",
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 9007199254740991
+                          "description": "Artwork height in pixels, at least 1. Fractions are accepted.",
+                          "type": "number",
+                          "minimum": 1
                         }
                       }
                     },
@@ -1911,16 +1921,12 @@
                       "type": "object",
                       "properties": {
                         "top": {
-                          "description": "Top offset in pixels",
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
+                          "description": "Top offset in pixels. Fractions are accepted.",
+                          "type": "number"
                         },
                         "left": {
-                          "description": "Left offset in pixels",
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
+                          "description": "Left offset in pixels. Fractions are accepted.",
+                          "type": "number"
                         }
                       }
                     },
@@ -1951,19 +1957,22 @@
                   "type": "object",
                   "properties": {
                     "hex": {
+                      "description": "Color overlay as a six-digit hex code, e.g. '#FF5733'. Send this or label.",
                       "type": "string",
-                      "pattern": "^#[0-9a-fA-F]{6}$",
-                      "description": "Color overlay as a six-digit hex code"
+                      "pattern": "^#[0-9a-fA-F]{6}$"
+                    },
+                    "label": {
+                      "description": "The name of a color saved on this mockup, e.g. 'blue jean', matched exactly. Send this instead of hex.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 32
                     },
                     "blending_mode": {
                       "default": "normal",
                       "description": "Blend mode for the color overlay",
                       "type": "string"
                     }
-                  },
-                  "required": [
-                    "hex"
-                  ]
+                  }
                 },
                 "adjustment_layers": {
                   "description": "Optional artwork adjustments",
@@ -2108,6 +2117,15 @@
                     "clip",
                     "overflow"
                   ]
+                },
+                "vertical_align": {
+                  "description": "Where text that fit 'shrink' scaled down sits in the original area: 'top' (the default), 'center' or 'bottom'. Single-style point text only.",
+                  "type": "string",
+                  "enum": [
+                    "top",
+                    "bottom",
+                    "center"
+                  ]
                 }
               },
               "required": [
@@ -2244,10 +2262,12 @@
           },
           "fit": {
             "default": "fill",
-            "description": "How singular artwork_url fills its smart object area",
+            "description": "How the singular artwork_url meets its smart object area. 'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fill'.",
             "type": "string",
             "enum": [
               "fill",
+              "fit",
+              "crop",
               "contain",
               "cover"
             ]
