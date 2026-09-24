@@ -1117,7 +1117,7 @@
     },
     {
       "name": "render_mockup",
-      "description": "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
+      "description": "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Name what to fill with any of these, alone or together: smart_object_uuid + artwork_url for one smart object, smart_objects entries ({uuid, asset or color}) for one or more, text_layers entries ({uuid, text or segments}), or text_layer_uuid + text for one text layer. Sent together they are combined into one render: the smart_object_uuid entry comes before the smart_objects entries, and the text_layer_uuid entry before the text_layers entries. A call that names nothing to render returns an error. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1126,15 +1126,15 @@
             "description": "UUID of the mockup template (from list_mockups)"
           },
           "smart_object_uuid": {
-            "description": "UUID of one smart object layer. Provide with artwork_url, or use smart_objects for one or more entries.",
+            "description": "UUID of one smart object layer (from get_mockup_details). Send with artwork_url, or leave both out and use smart_objects or text_layers. With smart_objects, this entry comes first.",
             "type": "string"
           },
           "artwork_url": {
-            "description": "Public artwork URL for smart_object_uuid. Provide both singular fields, or use smart_objects.",
+            "description": "Public artwork URL for smart_object_uuid. Send the two together, or leave both out and use smart_objects or text_layers.",
             "type": "string"
           },
           "smart_objects": {
-            "description": "One or more smart object overrides, each with asset or color. Do not combine with smart_object_uuid/artwork_url.",
+            "description": "Smart objects to fill, each with a uuid and asset or color. Works on its own; with smart_object_uuid these entries follow that one.",
             "minItems": 1,
             "type": "array",
             "items": {
@@ -1303,7 +1303,7 @@
             }
           },
           "text_layers": {
-            "description": "Editable text overrides from get_mockup_details. Each entry needs exactly one of text or segments. May be used alone or with smart objects.",
+            "description": "Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one.",
             "minItems": 1,
             "maxItems": 50,
             "type": "array",
@@ -1406,7 +1406,7 @@
             }
           },
           "text_layer_uuid": {
-            "description": "UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; a shorthand for one text_layers entry.",
+            "description": "UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; it becomes one text_layers entry, placed before any text_layers entries sent with it.",
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
@@ -1831,7 +1831,7 @@
     },
     {
       "name": "render_psd_mockup",
-      "description": "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs. Family-name spelling of render_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Name what to fill with any of these, alone or together: smart_object_uuid + artwork_url for one smart object, smart_objects entries ({uuid, asset or color}) for one or more, text_layers entries ({uuid, text or segments}), or text_layer_uuid + text for one text layer. Sent together they are combined into one render: the smart_object_uuid entry comes before the smart_objects entries, and the text_layer_uuid entry before the text_layers entries. A call that names nothing to render returns an error. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs. Family-name spelling of render_mockup: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1840,15 +1840,15 @@
             "description": "UUID of the mockup template (from list_mockups)"
           },
           "smart_object_uuid": {
-            "description": "UUID of one smart object layer. Provide with artwork_url, or use smart_objects for one or more entries.",
+            "description": "UUID of one smart object layer (from get_mockup_details). Send with artwork_url, or leave both out and use smart_objects or text_layers. With smart_objects, this entry comes first.",
             "type": "string"
           },
           "artwork_url": {
-            "description": "Public artwork URL for smart_object_uuid. Provide both singular fields, or use smart_objects.",
+            "description": "Public artwork URL for smart_object_uuid. Send the two together, or leave both out and use smart_objects or text_layers.",
             "type": "string"
           },
           "smart_objects": {
-            "description": "One or more smart object overrides, each with asset or color. Do not combine with smart_object_uuid/artwork_url.",
+            "description": "Smart objects to fill, each with a uuid and asset or color. Works on its own; with smart_object_uuid these entries follow that one.",
             "minItems": 1,
             "type": "array",
             "items": {
@@ -2017,7 +2017,7 @@
             }
           },
           "text_layers": {
-            "description": "Editable text overrides from get_mockup_details. Each entry needs exactly one of text or segments. May be used alone or with smart objects.",
+            "description": "Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one.",
             "minItems": 1,
             "maxItems": 50,
             "type": "array",
@@ -2120,7 +2120,7 @@
             }
           },
           "text_layer_uuid": {
-            "description": "UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; a shorthand for one text_layers entry.",
+            "description": "UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; it becomes one text_layers entry, placed before any text_layers entries sent with it.",
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
