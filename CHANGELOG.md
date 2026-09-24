@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.2.0] - 2026-09-25
+
+### Added
+
+- The package and the hosted server at `mcp.sudomock.com` now take the same
+  arguments on every shared tool and send the same request for them.
+  `render_mockup` and `render_psd_mockup` take the hosted server's single text
+  layer shortcut (`text_layer_uuid`, `text`, `text_segments`, `text_font`,
+  `text_font_size`, `text_color`, `text_stroke_color`, `text_fit`,
+  `text_vertical_align`) and `group_layer_uuid` with `group_stroke_color`.
+  `render_photo_mockup` and `render_2d_mockup` take `blend_mode`,
+  `render_photo_mockup` also takes `mockup_uuid`, and `render_video` takes
+  `advanced_model`.
+- Smart object colours take a `label` as well as a `hex`, text layers take
+  `vertical_align`, artwork size and position take fractions, and every `fit`
+  takes `fit` and `crop` beside `fill`, `contain` and `cover`.
+
+### Changed
+
+- The single `smart_object_uuid` and `artwork_url` pair can be sent together
+  with `smart_objects` or `text_layers`; the pair comes first. An empty list
+  counts as not sent.
+- The `event_naming` description says what a new webhook endpoint gets when no
+  naming is sent.
+
 ## [3.1.0] - 2026-09-24
 
 ### Changed
