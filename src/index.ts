@@ -953,11 +953,13 @@ server.tool(
 // Tool 5: render_mockup
 // ---------------------------------------------------------------------------
 
-// Every name the render API takes for how artwork meets a smart object: 'fill',
+// Every name the API takes for how artwork meets its area, on a smart object,
+// on a photo mockup print area and on a video's still frame alike: 'fill',
 // 'fit' and 'crop', and 'contain' and 'cover', the older names for 'fit' and
-// 'crop', which it still accepts. A name is sent as given. This package keeps
-// 'fill' as its default when fit is left out.
-const SMART_OBJECT_FIT_MODES = ["fill", "fit", "crop", "contain", "cover"] as const;
+// 'crop', which it still accepts. A name is sent as given. On a smart object
+// this package keeps 'fill' as its default when fit is left out; on a print
+// area nothing is sent and the API's own default applies.
+const FIT_MODES = ["fill", "fit", "crop", "contain", "cover"] as const;
 const SMART_OBJECT_FIT_HELP =
   "'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fill'.";
 
@@ -976,7 +978,7 @@ const smartObjectInputSchema = z
           .optional()
           .describe("MIME type for base64 artwork; defaults to image/png"),
         fit: z
-          .enum(SMART_OBJECT_FIT_MODES)
+          .enum(FIT_MODES)
           .default("fill")
           .describe(`How the artwork meets the smart object area. ${SMART_OBJECT_FIT_HELP}`),
         size: z
@@ -1223,7 +1225,7 @@ server.tool(
       .describe("Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one."),
     ...SINGLE_LAYER_SHORTCUT,
     fit: z
-      .enum(SMART_OBJECT_FIT_MODES)
+      .enum(FIT_MODES)
       .default("fill")
       .describe(`How the singular artwork_url meets its smart object area. ${SMART_OBJECT_FIT_HELP}`),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
@@ -1813,10 +1815,10 @@ server.registerTool(
       ...TWO_D_SHARED,
       print_area_uuid: z.string().describe("UUID of a saved print area from get_2d_mockup's print_areas[] (its print_area_id)."),
       fit: z
-        .enum(["contain", "fill", "cover"])
+        .enum(FIT_MODES)
         .optional()
         .describe(
-          "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead."
+          "How the artwork meets the print area, which it always fills edge to edge: 'fit' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'crop' fills and crops the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Leave it out to get 'fit'. To sit inside the area with room around it, send width and height instead."
         ),
       width: z
         .number()
@@ -2123,7 +2125,7 @@ server.tool(
     artwork_base64: z.string().optional().describe("RENDER MODE: raw base64-encoded artwork bytes (no data: prefix). Provide this OR artwork_url."),
     artwork_content_type: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]).optional().describe("MIME type for artwork_base64 (defaults to image/png if omitted)."),
     image_url: z.string().optional().describe("RAW-IMAGE MODE: a public https png/jpg URL to animate without a mockup. Supply this OR (mockup_uuid + smart_object_uuid + artwork), never both."),
-    fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("RENDER MODE: how artwork fills the smart object area in the still frame"),
+    fit: z.enum(FIT_MODES).default("fill").describe(`RENDER MODE: how the artwork meets the smart object area in the still frame. ${SMART_OBJECT_FIT_HELP}`),
     asset_width: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork width in pixels (overrides fit sizing)."),
     asset_height: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork height in pixels (overrides fit sizing)."),
     asset_top: z.number().int().optional().describe("RENDER MODE: artwork top offset in pixels within the smart object area."),
@@ -2756,10 +2758,10 @@ const PHOTO_RENDER_TARGET = {
       "How much of the surface the artwork spans, as a percentage (10-100). Belongs to surface_uuid; sending it with print_area_uuid is refused. Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size."
     ),
   fit: z
-    .enum(["contain", "fill", "cover"])
+    .enum(FIT_MODES)
     .optional()
     .describe(
-      "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead."
+      "How the artwork meets the print area, which it always fills edge to edge: 'fit' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'crop' fills and crops the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'fit'. To sit inside the area with room around it, send width and height instead."
     ),
   // A percentage cannot express a box whose proportions differ from the
   // target's, which is exactly what an artwork resized on a canvas is, so
