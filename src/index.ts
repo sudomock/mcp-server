@@ -1188,10 +1188,10 @@ server.tool(
 
 server.tool(
   "create_2d_mockup",
-  "Create a reusable 2D mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
+  "Create a reusable photo mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
   {
     source_url: z.string().describe("Public HTTPS URL of the product image"),
-    name: z.string().optional().describe("Optional display name for the 2D mockup"),
+    name: z.string().optional().describe("Optional display name for the photo mockup"),
     idempotency_key: z.string().min(1).max(255).optional().describe("Optional retry-stable key for this create request"),
     is_async: z
       .boolean()
@@ -1255,7 +1255,7 @@ server.tool(
 // could only describe in prose what the shape can state outright: whichever
 // tool the caller reaches for, every field on it applies.
 const TWO_D_SHARED = {
-  mockup_uuid: z.string().describe("UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."),
+  mockup_uuid: z.string().describe("UUID of the photo mockup template (from list_2d_mockups, returned as mockup_id)."),
   artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
   remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
   opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
@@ -1634,7 +1634,7 @@ server.tool(
   "get_2d_mockup",
   "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
   {
-    mockup_id: z.string().describe("UUID of the 2D mockup (mockup_id from list_2d_mockups)"),
+    mockup_id: z.string().describe("UUID of the photo mockup (mockup_id from list_2d_mockups)"),
   },
   async ({ mockup_id }) => {
     const result = await apiRequest({
@@ -1656,9 +1656,9 @@ server.tool(
 
 server.tool(
   "update_2d_print_areas",
-  "Replace a 2D mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
+  "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
   {
-    mockup_id: z.string().describe("UUID of the 2D mockup to update"),
+    mockup_id: z.string().describe("UUID of the photo mockup to update"),
     print_areas: z
       .array(
         z.object({
@@ -1702,7 +1702,7 @@ server.tool(
   "delete_2d_mockup",
   "Permanently delete a photo mockup template and all of its data. Cannot be undone. Costs 0 credits.",
   {
-    mockup_id: z.string().describe("UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"),
+    mockup_id: z.string().describe("UUID of the photo mockup to delete (mockup_id from list_2d_mockups)"),
   },
   async ({ mockup_id }) => {
     const result = await apiRequest({
@@ -1770,7 +1770,7 @@ server.tool(
 
 server.tool(
   "get_job",
-  "Get the current status of any async render, video, upload, or photo mockup (2D) job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
+  "Get the current status of any async render, video, upload, or photo mockup job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
   {
     job_id: z.string().describe("The job_id returned by any async submission"),
   },
@@ -1786,7 +1786,7 @@ server.tool(
 
 server.tool(
   "list_jobs",
-  "List your async jobs, including PSD renders, videos, uploads, and photo mockup (2D) creation/renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
+  "List your async jobs, including PSD renders, videos, uploads, and photo mockup creation and renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
   {
     kind: z
       .enum(["video", "render", "upload", "2d_create", "2d_render", "photo_mockup_create", "photo_mockup_render"])
@@ -1816,7 +1816,7 @@ server.tool(
 
 server.tool(
   "wait_for_job",
-  "Poll any async render, video, upload, or photo mockup (2D) job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
+  "Poll any async render, video, upload, or photo mockup job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
   {
     job_id: z.string().describe("The job_id to wait on (from an async submission or render_video)"),
     poll_interval_seconds: z
