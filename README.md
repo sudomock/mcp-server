@@ -182,9 +182,9 @@ API request identifies this package as `mcp-stdio/<version>` in its
 
 ## Pricing and account limits
 
-Subscriptions from **$0.002** per render. Without one, renders draw from your balance
-at **$0.05** each, the same rate standalone mockup APIs charge on a paid plan. Funding
-the balance takes a **$5** minimum first payment. Photo mockups and video are priced by
+Subscriptions from **$0.002** per render. Without one, **$0.05** per render, the same
+rate standalone mockup APIs charge on a paid plan. Funding the balance takes a **$5**
+minimum first payment. Photo mockups and video are priced by
 what they cost to produce rather than at the flat render rate, which is why the
 Credits column above is not uniform.
 
