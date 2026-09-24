@@ -344,7 +344,7 @@ test("render tools pass the new inputs without adding group_layers", async () =>
   }
 });
 
-test("render_mockup sends the single pair beside an empty smart_objects list as it sends the pair alone", async () => {
+test("render_mockup treats an empty list as not sent: the pair beside one sends the pair's body, empty lists alone send nothing", async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.SUDOMOCK_API_KEY;
   const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
@@ -372,40 +372,15 @@ test("render_mockup sends the single pair beside an empty smart_objects list as 
     assert.equal(requests.length, 2);
     assert.equal(requests[1].url, requests[0].url);
     assert.deepEqual(requests[1].body, requests[0].body);
-  } finally {
-    await client.close();
-    await server.close();
-    globalThis.fetch = originalFetch;
-    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
-    else process.env.SUDOMOCK_API_KEY = originalApiKey;
-  }
-});
 
-test("render_mockup with only empty smart_objects and text_layers lists returns Nothing to render and sends no request", async () => {
-  const originalFetch = globalThis.fetch;
-  const originalApiKey = process.env.SUDOMOCK_API_KEY;
-  let requestCount = 0;
-
-  globalThis.fetch = async () => {
-    requestCount += 1;
-    return Response.json({ success: true });
-  };
-  process.env.SUDOMOCK_API_KEY = "sm_test";
-
-  const client = await connectClient();
-  try {
     const result = await client.callTool({
       name: "render_mockup",
-      arguments: {
-        mockup_uuid: "123e4567-e89b-12d3-a456-426614174000",
-        smart_objects: [],
-        text_layers: [],
-      },
+      arguments: { mockup_uuid: pair.mockup_uuid, smart_objects: [], text_layers: [] },
     });
 
     assert.equal(result.isError, true);
     assert.match((result.content as Array<{ type: "text"; text: string }>)[0].text, /Nothing to render/);
-    assert.equal(requestCount, 0);
+    assert.equal(requests.length, 2);
   } finally {
     await client.close();
     await server.close();
@@ -414,6 +389,7 @@ test("render_mockup with only empty smart_objects and text_layers lists returns 
     else process.env.SUDOMOCK_API_KEY = originalApiKey;
   }
 });
+
 
 test("render_mockup returns only public output fields and safe warnings", async () => {
   const originalFetch = globalThis.fetch;
