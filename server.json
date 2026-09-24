@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.sudomock/mcp",
-  "description": "Product mockup API. Render PSD and 2D mockups, generate videos, manage async jobs and webhooks.",
+  "description": "Product mockup API. Render PSD and photo mockups, generate videos, manage async jobs and webhooks.",
   "repository": {
     "url": "https://github.com/sudomock/mcp-server",
     "source": "github"
   },
-  "version": "2.10.0",
+  "version": "2.10.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sudomock/mcp",
-      "version": "2.10.0",
+      "version": "2.10.1",
       "transport": {
         "type": "stdio"
       },

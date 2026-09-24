@@ -47,18 +47,18 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
 | `render_mockup` | Render a mockup with artwork and/or editable text | 1 |
 | `remove_background` | Get a transparent-PNG cutout through a 7-day signed URL | 25 |
-| `create_2d_mockup` | Create a 2D mockup and detect printable surfaces automatically | 25 |
+| `create_2d_mockup` | Create a photo mockup and detect printable surfaces automatically | 25 |
 | `render_2d_surface` | Print artwork across a whole product surface (all-over) | 5 |
 | `render_2d_print_area` | Print artwork into one saved print area (a drawn zone) | 5 |
 | `render_video` | Animate a mockup into a video clip (always async) | cost-based (one per account at no charge, then cost-based) |
 | `upload_psd` | Upload a Photoshop PSD/PSB template (sync or async) | 0 |
-| `list_2d_mockups` | List saved 2D templates; use `customizable_only` for shopper-ready items | 0 |
-| `get_2d_mockup` | Get one 2D mockup's saved print areas and its product surfaces | 0 |
-| `update_2d_print_areas` | Replace a 2D mockup's print-area geometry | 0 |
-| `delete_2d_mockup` | Delete a 2D mockup template | 0 |
+| `list_2d_mockups` | List saved photo mockup templates; use `customizable_only` for shopper-ready items | 0 |
+| `get_2d_mockup` | Get one photo mockup's saved print areas and its product surfaces | 0 |
+| `update_2d_print_areas` | Replace a photo mockup's print-area geometry | 0 |
+| `delete_2d_mockup` | Delete a photo mockup template | 0 |
 | `get_job` | Check the status of an async job by job_id | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
-| `list_jobs` | List async render, video, upload, and photo mockup (2D) jobs | 0 |
+| `list_jobs` | List async render, video, upload, and photo mockup jobs | 0 |
 | `get_account` | Check plan, credits, prepaid balance, and usage | 0 |
 | `update_mockup` | Rename a mockup template | 0 |
 | `delete_mockup` | Delete a mockup template | 0 |
@@ -101,16 +101,16 @@ explicit `width` + `height`). Picking the target by picking a tool, with
 
 ### Async jobs
 
-`render_mockup`, `upload_psd`, `create_2d_mockup`, and both 2D render tools
+`render_mockup`, `upload_psd`, `create_2d_mockup`, and both photo mockup render tools
 accept `is_async: true`, and `render_video` is always async. These return a
 `job_id` immediately (HTTP 202) instead of a final result. (`create_2d_mockup`
-and the 2D render tools are synchronous by default and return the mockup /
+and the photo mockup render tools are synchronous by default and return the mockup /
 render directly.) Poll it with `get_job`, or let `wait_for_job` block until the job
 reaches a terminal status and hands back `result_url`, `mockup_uuid`,
 `credits_charged`, and `payg` (`{credits, unit_price, cost}` for pay-as-you-go
 jobs, otherwise `null`).
 
-For a 2D render, pick the tool that matches the target you read from
+For a photo mockup render, pick the tool that matches the target you read from
 `get_2d_mockup`. Every printable product in the photo is a surface with its own
 `surface_uuid`: `render_2d_surface` prints across the whole of one, and takes
 either a `coverage` percentage or an explicit `width` + `height`. A print area
@@ -130,7 +130,7 @@ applies rather than a copy of it kept here.
 `remove_background` returns a transparent-PNG URL valid for 7 days. You can
 pass that URL straight back as `artwork_url` during that window. To clean
 artwork inline during a single render instead, pass
-`remove_background: true` to `render_mockup` or either 2D render tool. Either way it
+`remove_background: true` to `render_mockup` or either photo mockup render tool. Either way it
 costs 25 credits per artwork, refunded automatically if processing fails.
 
 ### Webhooks
@@ -179,7 +179,7 @@ annual billing takes the lowest self-serve rate to **$2.42 per 1,000 renders** o
 Pro 50K plan. Without any subscription at all it is **$0.05** per PSD render with a
 **$5** minimum first payment, so $1 covers 20 of them, which is the same rate
 standalone mockup APIs charge on a paid plan and the highest per-render rate SudoMock
-charges. 2D Mockups and video are priced by what they cost to produce rather than at
+charges. Photo mockups and video are priced by what they cost to produce rather than at
 the flat render rate, which is why the Credits column above is not uniform.
 
 A new account starts with **500 credits, granted once**, and needs no card to spend
@@ -208,9 +208,9 @@ as `0 / 0`.
 - "Render the t-shirt mockup with this design: https://example.com/logo.png"
 - "Replace the editable headline text, then render the mockup"
 - "Cut out the background from this product photo, then render it on the tote bag"
-- "List my 2D mockups, then render the first one with this artwork: https://example.com/logo.png"
+- "List my photo mockups, then render the first one with this artwork: https://example.com/logo.png"
 - "Render this design asynchronously and wait for it to finish"
-- "Queue that 2D mockup render async and give me the job id to track"
+- "Queue that photo mockup render async and give me the job id to track"
 - "Animate the hoodie mockup into a 5-second video clip"
 - "Upload this PSD as a new template: https://example.com/mockup.psd"
 - "Set up a webhook at https://example.com/hooks so I get notified when renders finish"
