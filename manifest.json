@@ -128,7 +128,7 @@
             }
           },
           "event_naming": {
-            "description": "Which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to take the API default ('current'). Pick 'legacy' only for a receiver written against the old names.",
+            "description": "Which spelling of the photo mockup events this endpoint receives: 'current' (photo_mockup.*, photo_mockup_render.*, kind photo_mockup_create/photo_mockup_render) or 'legacy' (2d_mockup.*, 2d_render.*, kind 2d_create/2d_render). Omit to let event_types decide: 'current' when it names photo mockup events by their family names only, otherwise 'legacy' (an empty list, a list of events spelled the same either way, or any legacy name). Pick 'legacy' only for a receiver written against the old names.",
             "type": "string",
             "enum": [
               "legacy",

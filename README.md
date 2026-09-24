@@ -165,9 +165,11 @@ The five photo mockup events also have a legacy spelling: `2d_mockup.ready`,
 `2d_render.failed` (with `kind` `2d_create` / `2d_render` in the payload).
 Which spelling an endpoint receives is its `event_naming` pin, set at
 `create_webhook_endpoint` and returned on every endpoint: `current` (the names
-above, the default for new endpoints) or `legacy`. Endpoints registered before
-the pin existed stay on `legacy`, so a receiver written against the old names
-keeps working unchanged. Once that receiver handles the new names, move it with
+above) or `legacy`. A create without a pin takes `current` only when
+`event_types` names photo mockup events by their family names alone, and
+`legacy` otherwise, including an empty list. Endpoints registered before the pin
+existed stay on `legacy`, so a receiver written against the old names keeps
+working unchanged. Once that receiver handles the new names, move it with
 `update_webhook_endpoint` and `event_naming: "current"`; sent on its own, the
 re-pin re-spells the endpoint's stored subscription list to match.
 
