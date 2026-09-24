@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.10.1] - 2026-09-24
+
+### Changed
+
+- Tool and field descriptions say "photo mockup" where they said "2D mockup",
+  matching the product name used across SudoMock. Tool names are unchanged:
+  `create_2d_mockup`, `list_2d_mockups` and the rest keep working exactly as
+  before, beside their `photo_mockup` family names.
+
 ## [2.10.0] - 2026-09-22
 
 ### Added

@@ -3,7 +3,7 @@
   "tools": [
     {
       "name": "create_2d_mockup",
-      "description": "Create a reusable 2D mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
+      "description": "Create a reusable photo mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -12,7 +12,7 @@
             "description": "Public HTTPS URL of the product image"
           },
           "name": {
-            "description": "Optional display name for the 2D mockup",
+            "description": "Optional display name for the photo mockup",
             "type": "string"
           },
           "idempotency_key": {
@@ -35,7 +35,7 @@
     },
     {
       "name": "create_photo_mockup",
-      "description": "Create a reusable 2D mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning. Family-name spelling of create_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Create a reusable photo mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning. Family-name spelling of create_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -44,7 +44,7 @@
             "description": "Public HTTPS URL of the product image"
           },
           "name": {
-            "description": "Optional display name for the 2D mockup",
+            "description": "Optional display name for the photo mockup",
             "type": "string"
           },
           "idempotency_key": {
@@ -129,7 +129,7 @@
         "properties": {
           "mockup_id": {
             "type": "string",
-            "description": "UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"
+            "description": "UUID of the photo mockup to delete (mockup_id from list_2d_mockups)"
           }
         },
         "required": [
@@ -163,7 +163,7 @@
         "properties": {
           "mockup_id": {
             "type": "string",
-            "description": "UUID of the 2D mockup to delete (mockup_id from list_2d_mockups)"
+            "description": "UUID of the photo mockup to delete (mockup_id from list_2d_mockups)"
           }
         },
         "required": [
@@ -214,7 +214,7 @@
         "properties": {
           "mockup_id": {
             "type": "string",
-            "description": "UUID of the 2D mockup (mockup_id from list_2d_mockups)"
+            "description": "UUID of the photo mockup (mockup_id from list_2d_mockups)"
           }
         },
         "required": [
@@ -234,7 +234,7 @@
     },
     {
       "name": "get_job",
-      "description": "Get the current status of any async render, video, upload, or photo mockup (2D) job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
+      "description": "Get the current status of any async render, video, upload, or photo mockup job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -274,7 +274,7 @@
         "properties": {
           "mockup_id": {
             "type": "string",
-            "description": "UUID of the 2D mockup (mockup_id from list_2d_mockups)"
+            "description": "UUID of the photo mockup (mockup_id from list_2d_mockups)"
           }
         },
         "required": [
@@ -330,7 +330,7 @@
     },
     {
       "name": "list_jobs",
-      "description": "List your async jobs, including PSD renders, videos, uploads, and photo mockup (2D) creation/renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
+      "description": "List your async jobs, including PSD renders, videos, uploads, and photo mockup creation and renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -587,7 +587,7 @@
         "properties": {
           "mockup_uuid": {
             "type": "string",
-            "description": "UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."
+            "description": "UUID of the photo mockup template (from list_2d_mockups, returned as mockup_id)."
           },
           "artwork_url": {
             "type": "string",
@@ -731,7 +731,7 @@
         "properties": {
           "mockup_uuid": {
             "type": "string",
-            "description": "UUID of the 2D mockup template (from list_2d_mockups, returned as mockup_id)."
+            "description": "UUID of the photo mockup template (from list_2d_mockups, returned as mockup_id)."
           },
           "artwork_url": {
             "type": "string",
@@ -2034,13 +2034,13 @@
     },
     {
       "name": "update_2d_print_areas",
-      "description": "Replace a 2D mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
+      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "mockup_id": {
             "type": "string",
-            "description": "UUID of the 2D mockup to update"
+            "description": "UUID of the photo mockup to update"
           },
           "print_areas": {
             "minItems": 0,
@@ -2109,13 +2109,13 @@
     },
     {
       "name": "update_photo_mockup_print_areas",
-      "description": "Replace a 2D mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits. Family-name spelling of update_2d_print_areas: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits. Family-name spelling of update_2d_print_areas: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "mockup_id": {
             "type": "string",
-            "description": "UUID of the 2D mockup to update"
+            "description": "UUID of the photo mockup to update"
           },
           "print_areas": {
             "minItems": 0,
@@ -2299,7 +2299,7 @@
     },
     {
       "name": "wait_for_job",
-      "description": "Poll any async render, video, upload, or photo mockup (2D) job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
+      "description": "Poll any async render, video, upload, or photo mockup job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
       "inputSchema": {
         "type": "object",
         "properties": {
