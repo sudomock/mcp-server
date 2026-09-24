@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.1.0] - 2026-09-24
+
+### Changed
+
+- README: the pricing section reads "Subscriptions from $0.002 per render" and
+  gives pay as you go at $0.05 per render in one sentence.
+- This release is numbered after 3.0.0 so that registries that sort by version
+  show it as the latest. Tools, names and arguments are the same as in 2.11.0.
+
 ## [2.11.0] - 2026-09-24
 
 ### Added
