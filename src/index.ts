@@ -1091,7 +1091,7 @@ const SINGLE_LAYER_SHORTCUT = {
     .string()
     .regex(LAYER_UUID)
     .optional()
-    .describe("UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; a shorthand for one text_layers entry."),
+    .describe("UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; it becomes one text_layers entry, placed before any text_layers entries sent with it."),
   text: z
     .string()
     .min(1)
@@ -1179,22 +1179,22 @@ function singleGroupLayer(args: SingleLayerShortcut): Record<string, unknown> | 
 
 server.tool(
   "render_mockup",
-  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
+  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Name what to fill with any of these, alone or together: smart_object_uuid + artwork_url for one smart object, smart_objects entries ({uuid, asset or color}) for one or more, text_layers entries ({uuid, text or segments}), or text_layer_uuid + text for one text layer. Sent together they are combined into one render: the smart_object_uuid entry comes before the smart_objects entries, and the text_layer_uuid entry before the text_layers entries. A call that names nothing to render returns an error. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
   {
     mockup_uuid: z.string().describe("UUID of the mockup template (from list_mockups)"),
-    smart_object_uuid: z.string().optional().describe("UUID of one smart object layer. Provide with artwork_url, or use smart_objects for one or more entries."),
-    artwork_url: z.string().optional().describe("Public artwork URL for smart_object_uuid. Provide both singular fields, or use smart_objects."),
+    smart_object_uuid: z.string().optional().describe("UUID of one smart object layer (from get_mockup_details). Send with artwork_url, or leave both out and use smart_objects or text_layers. With smart_objects, this entry comes first."),
+    artwork_url: z.string().optional().describe("Public artwork URL for smart_object_uuid. Send the two together, or leave both out and use smart_objects or text_layers."),
     smart_objects: z
       .array(smartObjectInputSchema)
       .min(1)
       .optional()
-      .describe("One or more smart object overrides, each with asset or color. Do not combine with smart_object_uuid/artwork_url."),
+      .describe("Smart objects to fill, each with a uuid and asset or color. Works on its own; with smart_object_uuid these entries follow that one."),
     text_layers: z
       .array(textLayerInputSchema)
       .min(1)
       .max(50)
       .optional()
-      .describe("Editable text overrides from get_mockup_details. Each entry needs exactly one of text or segments. May be used alone or with smart objects."),
+      .describe("Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one."),
     ...SINGLE_LAYER_SHORTCUT,
     fit: z.enum(["fill", "contain", "cover"]).default("fill").describe("How singular artwork_url fills its smart object area"),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
@@ -1225,25 +1225,22 @@ server.tool(
     const hasSmartObjectUuid = args.smart_object_uuid !== undefined;
     const hasArtworkUrl = args.artwork_url !== undefined;
     if (hasSmartObjectUuid !== hasArtworkUrl) {
-      throw new Error("Provide both smart_object_uuid and artwork_url, or use smart_objects.");
-    }
-    if (args.smart_objects && hasSmartObjectUuid) {
-      throw new Error("Provide smart_objects or smart_object_uuid/artwork_url, not both.");
+      throw new Error(
+        "Provide smart_object_uuid and artwork_url together, or leave both out and use smart_objects or text_layers."
+      );
     }
     const shortcutTextLayer = singleTextLayer(args);
     const shortcutGroupLayer = singleGroupLayer(args);
-    if (args.text_layers && shortcutTextLayer) {
-      throw new Error("Provide text_layers or text_layer_uuid with text/text_segments, not both.");
-    }
     if (!args.smart_objects && !hasSmartObjectUuid && !args.text_layers && !shortcutTextLayer && !shortcutGroupLayer) {
       throw new Error(
-        "Provide smart_objects, smart_object_uuid/artwork_url, text_layers, text_layer_uuid with text/text_segments, or group_layer_uuid with group_stroke_color."
+        "Nothing to render: provide smart_object_uuid with artwork_url, smart_objects, text_layers, text_layer_uuid with text or text_segments, or group_layer_uuid with group_stroke_color."
       );
     }
 
-    const smartObjects: Array<Record<string, unknown>> = args.smart_objects
-      ? [...args.smart_objects]
-      : [];
+    // The single pair and the lists are combined the way the hosted server
+    // combines them: the single entry first, then every list entry as given.
+    // An entry that names the same uuid twice reaches the API twice.
+    const smartObjects: Array<Record<string, unknown>> = [];
     if (hasSmartObjectUuid && hasArtworkUrl) {
       const smartObject: Record<string, unknown> = {
         uuid: args.smart_object_uuid,
@@ -1283,6 +1280,11 @@ server.tool(
       }
       smartObjects.push(smartObject);
     }
+    if (args.smart_objects) smartObjects.push(...args.smart_objects);
+    const textLayers: Array<Record<string, unknown>> = [
+      ...(shortcutTextLayer ? [shortcutTextLayer] : []),
+      ...(args.text_layers ?? []),
+    ];
 
     const body: Record<string, unknown> = {
       mockup_uuid: args.mockup_uuid,
@@ -1294,8 +1296,7 @@ server.tool(
       },
     };
     if (smartObjects.length) body.smart_objects = smartObjects;
-    if (args.text_layers) body.text_layers = args.text_layers;
-    else if (shortcutTextLayer) body.text_layers = [shortcutTextLayer];
+    if (textLayers.length) body.text_layers = textLayers;
     if (shortcutGroupLayer) body.group_layers = [shortcutGroupLayer];
 
     if (args.export_label) {
