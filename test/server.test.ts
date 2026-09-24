@@ -64,6 +64,13 @@ const EXPECTED_TOOLS = [
   "list_webhook_deliveries",
   "replay_webhook_delivery",
   "upload_local_file",
+  // The names the hosted server publishes, so both offer one set of tools.
+  "list_fonts",
+  "create_upload_url",
+  "render_2d_mockup",
+  "get_2d_mockup_details",
+  "send_webhook_test_event",
+  "replay_failed_webhook_deliveries",
 ];
 
 test("registers every expected tool with a description + object input schema", async () => {

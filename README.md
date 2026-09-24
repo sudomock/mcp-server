@@ -47,6 +47,8 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
 | `render_mockup` | Render a mockup with artwork and/or editable text | 1 |
 | `remove_background` | Get a transparent-PNG cutout through a 7-day signed URL | 25 |
+| `list_fonts` | List the fonts available for text layers, including your uploads | 0 |
+| `create_upload_url` | Get an upload URL for a local file and the file URL it will have | 0 |
 | `create_2d_mockup` | Create a photo mockup and detect printable surfaces automatically | 25 |
 | `render_2d_surface` | Print artwork across a whole product surface (all-over) | 5 |
 | `render_2d_print_area` | Print artwork into one saved print area (a drawn zone) | 5 |
@@ -70,6 +72,7 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `test_webhook_endpoint` | Send a signed `webhook.test` event | 0 |
 | `list_webhook_deliveries` | List delivery attempts for an endpoint | 0 |
 | `replay_webhook_delivery` | Replay a single failed delivery | 0 |
+| `replay_failed_webhook_deliveries` | Replay every failed delivery for an endpoint | 0 |
 
 ### Both spellings work
 
@@ -91,6 +94,9 @@ the same tool with the same arguments. Reach for either.
 | `update_2d_print_areas` | `update_photo_mockup_print_areas` |
 | `delete_2d_mockup` | `delete_photo_mockup` |
 | `render_2d_surface`, `render_2d_print_area` | `render_photo_mockup` |
+| `get_2d_mockup` | `get_2d_mockup_details` |
+| `test_webhook_endpoint` | `send_webhook_test_event` |
+| `render_photo_mockup` | `render_2d_mockup` |
 
 `render_photo_mockup` is the one that is not simply a second name for a single
 tool. It renders either kind of target from one tool: pass the mockup as
@@ -98,6 +104,8 @@ tool. It renders either kind of target from one tool: pass the mockup as
 explicit `width` + `height`) or `print_area_uuid` (sized by `fit` or an
 explicit `width` + `height`). Picking the target by picking a tool, with
 `mockup_uuid`, is what `render_2d_surface` and `render_2d_print_area` still do.
+`render_2d_mockup` is `render_photo_mockup` under a second name, with the
+mockup passed as `mockup_uuid`.
 
 ### Async jobs
 

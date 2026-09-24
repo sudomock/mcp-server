@@ -687,6 +687,60 @@ function publicWebhookAction(result: unknown): Record<string, unknown> {
   };
 }
 
+function publicWebhookBulkReplay(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const data = asRecord(envelope.data ?? result);
+  return {
+    success: envelope.success !== false,
+    status: data.status ?? null,
+    count: data.count ?? null,
+  };
+}
+
+function publicFontList(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const rows = Array.isArray(envelope.data) ? envelope.data : [];
+  const pagination = asRecord(envelope.pagination);
+  return {
+    success: envelope.success !== false,
+    data: rows.map((row) => {
+      const font = asRecord(row);
+      return {
+        uuid: font.uuid ?? null,
+        family: font.family ?? null,
+        subfamily: font.subfamily ?? null,
+        postscript_name: font.postscript_name ?? null,
+        category: font.category ?? null,
+        license: font.license ?? null,
+        is_premium: font.is_premium === true,
+        is_system: font.is_system === true,
+        preview_url: font.preview_url ?? null,
+        file_url: font.file_url ?? null,
+        created_at: font.created_at ?? null,
+      };
+    }),
+    pagination: {
+      page: pagination.page ?? null,
+      per_page: pagination.per_page ?? null,
+      total: pagination.total ?? rows.length,
+    },
+  };
+}
+
+function publicUploadTarget(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const data = asRecord(envelope.data ?? result);
+  return {
+    success: envelope.success !== false,
+    data: {
+      upload_url: data.upload_url ?? null,
+      file_url: data.file_url ?? null,
+      method: data.method ?? null,
+      expires_in: data.expires_in ?? null,
+    },
+  };
+}
+
 /**
  * A job is done when its status is terminal. The poll response (GET
  * /api/v1/jobs/{job_id}) always reports the job state in the `status` field.
@@ -1183,6 +1237,44 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
+// Tool: list_fonts
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "list_fonts",
+  "List fonts available for text layers: the shared system catalog plus any fonts you have uploaded. Filter by family name (search), by category (serif, sans-serif, display), or by scope ('all', 'system', or 'custom' for your uploads only); results are paginated (per_page up to 100). Use a font's uuid or postscript_name as the font of a text_layers entry when rendering with render_mockup. Costs 0 credits.",
+  {
+    search: z.string().optional().describe("Filter by family name (case-insensitive contains), e.g. 'sans'"),
+    category: z.string().optional().describe("Filter by category, e.g. 'serif', 'sans-serif', 'display'"),
+    scope: z
+      .enum(["all", "system", "custom"])
+      .default("all")
+      .describe("Which fonts to return: 'all' (system fonts plus your uploads, the default), 'system', or 'custom' (your uploads only)"),
+    page: z.number().int().min(1).default(1).describe("Page number (1-based, default 1)"),
+    per_page: z.number().int().min(1).max(100).default(50).describe("Results per page (1-100, default 50)"),
+  },
+  async ({ search, category, scope, page, per_page }) => {
+    const result = await apiRequest({
+      method: "GET",
+      path: "/api/v1/fonts",
+      params: {
+        page,
+        per_page,
+        scope,
+        search: search || undefined,
+        category: category || undefined,
+      },
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicFontList(result), null, 2),
+      }],
+    };
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Tool: create_2d_mockup
 // ---------------------------------------------------------------------------
 
@@ -1300,7 +1392,7 @@ const TWO_D_SHARED = {
     .boolean()
     .default(false)
     .describe(
-      "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel."
+      "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately; poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel."
     ),
 };
 
@@ -1632,7 +1724,7 @@ server.tool(
 
 server.tool(
   "get_2d_mockup",
-  "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+  "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the photo mockup (mockup_id from list_2d_mockups)"),
   },
@@ -2209,6 +2301,26 @@ server.tool(
   }
 );
 
+server.tool(
+  "replay_failed_webhook_deliveries",
+  "Re-send every failed or dead delivery for a webhook endpoint in one call, e.g. after fixing your endpoint. Returns status and count: how many deliveries were queued to be sent again. To re-send a single delivery, use replay_webhook_delivery.",
+  {
+    endpoint_id: z.string().describe("The id of the webhook endpoint whose failed deliveries are all sent again (from list_webhook_endpoints)"),
+  },
+  async ({ endpoint_id }) => {
+    const result = await apiRequest({
+      method: "POST",
+      path: `/api/v1/webhook-endpoints/${endpoint_id}/deliveries/replay-failed`,
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicWebhookBulkReplay(result), null, 2),
+      }],
+    };
+  }
+);
+
 // ---------------------------------------------------------------------------
 // Local file upload
 //
@@ -2332,6 +2444,35 @@ server.tool(
   }
 );
 
+// The same signing call as upload_local_file, with the upload itself left to the
+// caller: the upload URL comes back in the result instead of being used here.
+// It is the tool for a file this process cannot read, and the name the hosted
+// server publishes for the same step.
+server.tool(
+  "create_upload_url",
+  "Get a place to send a file that only exists on your machine. Every other tool takes a URL, so a local file has to be uploaded first. Returns an upload_url to PUT the bytes to and the file_url they will have afterwards; pass that file_url as psd_file_url to upload_psd, or as artwork_url to any render tool. Set kind to \"psd\" for a .psd or .psb template, or \"artwork\" for a .png, .jpg, .webp or .gif image. The upload target is scoped to a single file and cannot be overwritten or read back through the same URL. When the file is on the machine running this server, upload_local_file uploads it in one step. Costs 0 credits.",
+  {
+    filename: z.string().describe("The file's name, e.g. shirt.psd. Only its extension is read, and a type that cannot be processed is refused."),
+    kind: z
+      .enum(["psd", "artwork"])
+      .default("psd")
+      .describe("\"psd\" for a .psd or .psb template, \"artwork\" for a .png, .jpg, .webp or .gif image."),
+  },
+  async ({ filename, kind }) => {
+    const result = await apiRequest({
+      method: "POST",
+      path: "/api/v1/uploads/sign",
+      body: { filename, kind },
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicUploadTarget(result), null, 2),
+      }],
+    };
+  }
+);
+
 // ---------------------------------------------------------------------------
 // Family names, added beside the names above
 // ---------------------------------------------------------------------------
@@ -2349,23 +2490,24 @@ server.tool(
  * The two names share one handler and one input schema: the registration
  * arguments are replayed with a different name, so there is no second copy to
  * keep in step and no way for the two to drift apart. The original
- * registration is not touched, including its description.
+ * registration is not touched, including its description. `relation` is how
+ * the added description names the pairing.
  */
-function alsoRegisterAs(existing: string, familyName: string): void {
+function alsoRegisterAs(existing: string, secondName: string, relation = "Family-name spelling"): void {
   const source = registrations.get(existing);
   if (source === undefined || source.method !== "tool") {
-    throw new Error(`Cannot publish ${familyName}: ${existing} has no replayable registration.`);
+    throw new Error(`Cannot publish ${secondName}: ${existing} has no replayable registration.`);
   }
   const [, description, ...rest] = source.args;
   if (typeof description !== "string") {
     throw new Error(
-      `Cannot publish ${familyName}: ${existing} was registered without a description, ` +
+      `Cannot publish ${secondName}: ${existing} was registered without a description, ` +
         "so replaying its arguments would drop the input schema and take any argument."
     );
   }
   (server.tool as unknown as (...args: unknown[]) => unknown)(
-    familyName,
-    `${description} Family-name spelling of ${existing}: one tool under two names, same arguments, same behavior. Either name works.`,
+    secondName,
+    `${description} ${relation} of ${existing}: one tool under two names, same arguments, same behavior. Either name works.`,
     ...rest
   );
 }
@@ -2388,6 +2530,21 @@ for (const [existing, familyName] of [
 }
 
 // ---------------------------------------------------------------------------
+// Names the hosted server publishes for tools this package already has
+// ---------------------------------------------------------------------------
+
+// The hosted server and this package offer one set of tools, so a setup moved
+// from one to the other keeps working. Where the hosted server calls a tool
+// that exists here by another name, that name is added here the same way the
+// family names are: the same handler and the same input schema.
+for (const [existing, secondName] of [
+  ["get_2d_mockup", "get_2d_mockup_details"],
+  ["test_webhook_endpoint", "send_webhook_test_event"],
+] as const) {
+  alsoRegisterAs(existing, secondName, "Second name");
+}
+
+// ---------------------------------------------------------------------------
 // Tool: render_photo_mockup
 // ---------------------------------------------------------------------------
 
@@ -2406,59 +2563,59 @@ const ONE_TARGET = "Provide exactly one of print_area_uuid or surface_uuid";
 // with, and the name the photo mockup tools return the id under.
 const { mockup_uuid: _twoDMockupUuid, ...PHOTO_RENDER_SHARED } = TWO_D_SHARED;
 
-const renderPhotoMockupInput = z.strictObject(
-  {
-    mockup_id: z
-      .string()
-      .describe("UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup)."),
-    ...PHOTO_RENDER_SHARED,
-    print_area_uuid: z
-      .string()
-      .optional()
-      .describe(
-        "UUID of a saved print area from get_photo_mockup's print_areas[] (its print_area_id): a bounded zone somebody drew on the product, such as a chest logo. Omit when surface_uuid is used."
-      ),
-    surface_uuid: z
-      .string()
-      .optional()
-      .describe(
-        "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used."
-      ),
-    coverage: z
-      .number()
-      .min(10)
-      .max(100)
-      .optional()
-      .describe(
-        "How much of the surface the artwork spans, as a percentage (10-100). Belongs to surface_uuid; sending it with print_area_uuid is refused. Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size."
-      ),
-    fit: z
-      .enum(["contain", "fill", "cover"])
-      .optional()
-      .describe(
-        "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead."
-      ),
-    // A percentage cannot express a box whose proportions differ from the
-    // target's, which is exactly what an artwork resized on a canvas is, so
-    // the exact box belongs to both kinds of target.
-    width: z
-      .number()
-      .min(1)
-      .max(30000)
-      .optional()
-      .describe(
-        "Artwork width in pixels, drawn at that exact size instead of by coverage or fit. Send together with height, and without coverage or fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement."
-      ),
-    height: z
-      .number()
-      .min(1)
-      .max(30000)
-      .optional()
-      .describe(
-        "Artwork height in pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you."
-      ),
-  },
-  {
+// The target and the dials that size it. They are the same fields whichever
+// name the render is reached by, so they are written down once.
+const PHOTO_RENDER_TARGET = {
+  print_area_uuid: z
+    .string()
+    .optional()
+    .describe(
+      "UUID of a saved print area from get_photo_mockup's print_areas[] (its print_area_id): a bounded zone somebody drew on the product, such as a chest logo. Omit when surface_uuid is used."
+    ),
+  surface_uuid: z
+    .string()
+    .optional()
+    .describe(
+      "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used."
+    ),
+  coverage: z
+    .number()
+    .min(10)
+    .max(100)
+    .optional()
+    .describe(
+      "How much of the surface the artwork spans, as a percentage (10-100). Belongs to surface_uuid; sending it with print_area_uuid is refused. Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size."
+    ),
+  fit: z
+    .enum(["contain", "fill", "cover"])
+    .optional()
+    .describe(
+      "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead."
+    ),
+  // A percentage cannot express a box whose proportions differ from the
+  // target's, which is exactly what an artwork resized on a canvas is, so
+  // the exact box belongs to both kinds of target.
+  width: z
+    .number()
+    .min(1)
+    .max(30000)
+    .optional()
+    .describe(
+      "Artwork width in pixels, drawn at that exact size instead of by coverage or fit. Send together with height, and without coverage or fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement."
+    ),
+  height: z
+    .number()
+    .min(1)
+    .max(30000)
+    .optional()
+    .describe(
+      "Artwork height in pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you."
+    ),
+};
+
+/** The strict input of a one-tool photo mockup render, refusing unknown options by name. */
+function photoRenderInput<Shape extends z.ZodRawShape>(shape: Shape) {
+  return z.strictObject(shape, {
     error: (issue) => {
       if (issue.code !== "unrecognized_keys") return undefined;
       return issue.keys
@@ -2469,8 +2626,58 @@ const renderPhotoMockupInput = z.strictObject(
         )
         .join(" ");
     },
+  });
+}
+
+const renderPhotoMockupInput = photoRenderInput({
+  mockup_id: z
+    .string()
+    .describe("UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup)."),
+  ...PHOTO_RENDER_SHARED,
+  ...PHOTO_RENDER_TARGET,
+});
+
+type PhotoRenderArgs = Omit<TwoDSharedArgs, "mockup_uuid"> & {
+  print_area_uuid?: string;
+  surface_uuid?: string;
+  coverage?: number;
+  fit?: string;
+  width?: number;
+  height?: number;
+};
+
+/**
+ * Render one photo mockup target named by argument rather than by tool.
+ *
+ * Shared by every name that takes the target as an argument, so the refusals
+ * and the request are one implementation whichever of them is called.
+ */
+async function renderNamedTarget(args: PhotoRenderArgs, mockupUuid: string) {
+  const hasPrintArea = args.print_area_uuid !== undefined;
+  const hasSurface = args.surface_uuid !== undefined;
+  if (hasPrintArea === hasSurface) throw new Error(ONE_TARGET);
+  // The dial of the other kind of target is refused by name, in the words
+  // the tool that owns that dial already refuses it with. Refusing is keyed
+  // on the argument being written rather than on the value it holds: writing
+  // it is the caller naming the option.
+  if (hasSurface && args.fit !== undefined) throw new Error(TWO_D_REFUSED_OPTIONS.surface.fit);
+  if (hasPrintArea && args.coverage !== undefined) {
+    throw new Error(TWO_D_REFUSED_OPTIONS.print_area.coverage);
   }
-);
+
+  const sizing = {
+    ...(args.coverage === undefined ? {} : { coverage: args.coverage }),
+    ...(args.fit === undefined ? {} : { fit: args.fit }),
+    ...(args.width === undefined ? {} : { width: args.width }),
+    ...(args.height === undefined ? {} : { height: args.height }),
+  };
+  assertOneSizingAnswer(sizing, hasSurface ? "coverage" : "fit");
+  return renderTwoD(
+    { ...args, mockup_uuid: mockupUuid },
+    hasSurface ? { surface_uuid: args.surface_uuid } : { uuid: args.print_area_uuid },
+    sizing
+  );
+}
 
 server.registerTool(
   "render_photo_mockup",
@@ -2479,32 +2686,29 @@ server.registerTool(
       "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_photo_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Family-name spelling of render_2d_surface and render_2d_print_area, which stay available and behave exactly as they did. Use the dashboard for visual fine-tuning.",
     inputSchema: renderPhotoMockupInput,
   },
-  async (args) => {
-    const hasPrintArea = args.print_area_uuid !== undefined;
-    const hasSurface = args.surface_uuid !== undefined;
-    if (hasPrintArea === hasSurface) throw new Error(ONE_TARGET);
-    // The dial of the other kind of target is refused by name, in the words
-    // the tool that owns that dial already refuses it with. Refusing is keyed
-    // on the argument being written rather than on the value it holds: writing
-    // it is the caller naming the option.
-    if (hasSurface && args.fit !== undefined) throw new Error(TWO_D_REFUSED_OPTIONS.surface.fit);
-    if (hasPrintArea && args.coverage !== undefined) {
-      throw new Error(TWO_D_REFUSED_OPTIONS.print_area.coverage);
-    }
+  async (args) => renderNamedTarget(args, args.mockup_id)
+);
 
-    const sizing = {
-      ...(args.coverage === undefined ? {} : { coverage: args.coverage }),
-      ...(args.fit === undefined ? {} : { fit: args.fit }),
-      ...(args.width === undefined ? {} : { width: args.width }),
-      ...(args.height === undefined ? {} : { height: args.height }),
-    };
-    assertOneSizingAnswer(sizing, hasSurface ? "coverage" : "fit");
-    return renderTwoD(
-      { ...args, mockup_uuid: args.mockup_id },
-      hasSurface ? { surface_uuid: args.surface_uuid } : { uuid: args.print_area_uuid },
-      sizing
-    );
-  }
+// ---------------------------------------------------------------------------
+// Tool: render_2d_mockup
+// ---------------------------------------------------------------------------
+
+// The name the hosted server publishes render_photo_mockup under, and the name
+// this package's single render tool had before the render was split in two.
+// It is render_photo_mockup under a second name, with one difference in
+// spelling: the mockup travels as `mockup_uuid`, as it does on
+// render_2d_surface and render_2d_print_area and as that name always took it.
+server.registerTool(
+  "render_2d_mockup",
+  {
+    description:
+      "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Second name of render_photo_mockup: the same tool and behavior, with the mockup passed as mockup_uuid. Use the dashboard for visual fine-tuning.",
+    inputSchema: photoRenderInput({
+      ...TWO_D_SHARED,
+      ...PHOTO_RENDER_TARGET,
+    }),
+  },
+  async (args) => renderNamedTarget(args, args.mockup_uuid)
 );
 
 // ---------------------------------------------------------------------------
