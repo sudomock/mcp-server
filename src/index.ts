@@ -1184,14 +1184,14 @@ server.tool(
     mockup_uuid: z.string().describe("UUID of the mockup template (from list_mockups)"),
     smart_object_uuid: z.string().optional().describe("UUID of one smart object layer (from get_mockup_details). Send with artwork_url, or leave both out and use smart_objects or text_layers. With smart_objects, this entry comes first."),
     artwork_url: z.string().optional().describe("Public artwork URL for smart_object_uuid. Send the two together, or leave both out and use smart_objects or text_layers."),
+    // An empty list is accepted and counts as not sent, as on the hosted
+    // server: smart_objects: [] beside the single pair renders the pair.
     smart_objects: z
       .array(smartObjectInputSchema)
-      .min(1)
       .optional()
       .describe("Smart objects to fill, each with a uuid and asset or color. Works on its own; with smart_object_uuid these entries follow that one."),
     text_layers: z
       .array(textLayerInputSchema)
-      .min(1)
       .max(50)
       .optional()
       .describe("Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one."),
@@ -1231,7 +1231,16 @@ server.tool(
     }
     const shortcutTextLayer = singleTextLayer(args);
     const shortcutGroupLayer = singleGroupLayer(args);
-    if (!args.smart_objects && !hasSmartObjectUuid && !args.text_layers && !shortcutTextLayer && !shortcutGroupLayer) {
+    // An empty list names nothing, so it counts as not sent.
+    const listedSmartObjects = args.smart_objects ?? [];
+    const listedTextLayers = args.text_layers ?? [];
+    if (
+      !listedSmartObjects.length &&
+      !hasSmartObjectUuid &&
+      !listedTextLayers.length &&
+      !shortcutTextLayer &&
+      !shortcutGroupLayer
+    ) {
       throw new Error(
         "Nothing to render: provide smart_object_uuid with artwork_url, smart_objects, text_layers, text_layer_uuid with text or text_segments, or group_layer_uuid with group_stroke_color."
       );
@@ -1280,10 +1289,10 @@ server.tool(
       }
       smartObjects.push(smartObject);
     }
-    if (args.smart_objects) smartObjects.push(...args.smart_objects);
+    smartObjects.push(...listedSmartObjects);
     const textLayers: Array<Record<string, unknown>> = [
       ...(shortcutTextLayer ? [shortcutTextLayer] : []),
-      ...(args.text_layers ?? []),
+      ...listedTextLayers,
     ];
 
     const body: Record<string, unknown> = {
