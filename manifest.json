@@ -66,6 +66,32 @@
       }
     },
     {
+      "name": "create_upload_url",
+      "description": "Get a place to send a file that only exists on your machine. Every other tool takes a URL, so a local file has to be uploaded first. Returns an upload_url to PUT the bytes to and the file_url they will have afterwards; pass that file_url as psd_file_url to upload_psd, or as artwork_url to any render tool. Set kind to \"psd\" for a .psd or .psb template, or \"artwork\" for a .png, .jpg, .webp or .gif image. The upload target is scoped to a single file and cannot be overwritten or read back through the same URL. When the file is on the machine running this server, upload_local_file uploads it in one step. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "The file's name, e.g. shirt.psd. Only its extension is read, and a type that cannot be processed is refused."
+          },
+          "kind": {
+            "default": "psd",
+            "description": "\"psd\" for a .psd or .psb template, \"artwork\" for a .png, .jpg, .webp or .gif image.",
+            "type": "string",
+            "enum": [
+              "psd",
+              "artwork"
+            ]
+          }
+        },
+        "required": [
+          "filename"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "create_webhook_endpoint",
       "description": "Register a webhook endpoint that SudoMock calls when async jobs finish. The signing secret is returned IN FULL exactly once here -- store it to verify the HMAC carried in the X-SudoMock-Signature header (with X-SudoMock-Timestamp) on incoming deliveries. URL must be https and publicly routable.",
       "inputSchema": {
@@ -208,7 +234,24 @@
     },
     {
       "name": "get_2d_mockup",
-      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_id": {
+            "type": "string",
+            "description": "UUID of the photo mockup (mockup_id from list_2d_mockups)"
+          }
+        },
+        "required": [
+          "mockup_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "get_2d_mockup_details",
+      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits. Second name of get_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -268,7 +311,7 @@
     },
     {
       "name": "get_photo_mockup",
-      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[] -- one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits. Family-name spelling of get_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits. Family-name spelling of get_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -323,6 +366,48 @@
             "default": false,
             "description": "Return only mockups ready for shopper customization",
             "type": "boolean"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_fonts",
+      "description": "List fonts available for text layers: the shared system catalog plus any fonts you have uploaded. Filter by family name (search), by category (serif, sans-serif, display), or by scope ('all', 'system', or 'custom' for your uploads only); results are paginated (per_page up to 100). Use a font's uuid or postscript_name as the font of a text_layers entry when rendering with render_mockup. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "description": "Filter by family name (case-insensitive contains), e.g. 'sans'",
+            "type": "string"
+          },
+          "category": {
+            "description": "Filter by category, e.g. 'serif', 'sans-serif', 'display'",
+            "type": "string"
+          },
+          "scope": {
+            "default": "all",
+            "description": "Which fonts to return: 'all' (system fonts plus your uploads, the default), 'system', or 'custom' (your uploads only)",
+            "type": "string",
+            "enum": [
+              "all",
+              "system",
+              "custom"
+            ]
+          },
+          "page": {
+            "default": 1,
+            "description": "Page number (1-based, default 1)",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "per_page": {
+            "default": 50,
+            "description": "Results per page (1-100, default 50)",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -580,6 +665,159 @@
       }
     },
     {
+      "name": "render_2d_mockup",
+      "description": "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Second name of render_photo_mockup: the same tool and behavior, with the mockup passed as mockup_uuid. Use the dashboard for visual fine-tuning.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "mockup_uuid": {
+            "type": "string",
+            "description": "UUID of the photo mockup template (from list_2d_mockups, returned as mockup_id)."
+          },
+          "artwork_url": {
+            "type": "string",
+            "description": "Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"
+          },
+          "remove_background": {
+            "default": false,
+            "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+            "type": "boolean"
+          },
+          "opacity": {
+            "default": 100,
+            "description": "Artwork opacity percentage (0-100)",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "brightness": {
+            "default": 0,
+            "description": "Brightness adjustment (-150 to 150)",
+            "type": "number",
+            "minimum": -150,
+            "maximum": 150
+          },
+          "contrast": {
+            "default": 0,
+            "description": "Contrast adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "saturation": {
+            "default": 0,
+            "description": "Saturation adjustment (-100 to 100)",
+            "type": "number",
+            "minimum": -100,
+            "maximum": 100
+          },
+          "rotation": {
+            "description": "Rotate artwork in degrees (-360 to 360). Omit to leave it unrotated.",
+            "type": "number",
+            "minimum": -360,
+            "maximum": 360
+          },
+          "offset_x": {
+            "description": "Pixel offset along the X axis from the anchored position. Omit to sit exactly on the anchor.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "offset_y": {
+            "description": "Pixel offset along the Y axis from the anchored position. Omit to sit exactly on the anchor.",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "position": {
+            "description": "Where the artwork sits within its target. Omit to accept the renderer's anchor, which is the center.",
+            "type": "string",
+            "enum": [
+              "center",
+              "top_left",
+              "top_center",
+              "top_right",
+              "center_left",
+              "center_right",
+              "bottom_left",
+              "bottom_center",
+              "bottom_right"
+            ]
+          },
+          "image_format": {
+            "default": "webp",
+            "description": "Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'",
+            "type": "string",
+            "enum": [
+              "webp",
+              "png",
+              "jpg"
+            ]
+          },
+          "image_size": {
+            "default": 2048,
+            "description": "Output width in pixels (100-10000, default 2048)",
+            "type": "number",
+            "minimum": 100,
+            "maximum": 10000
+          },
+          "quality": {
+            "default": 90,
+            "description": "Compression quality for webp/jpg (1-100, default 90)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "is_async": {
+            "default": false,
+            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately; poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
+            "type": "boolean"
+          },
+          "print_area_uuid": {
+            "description": "UUID of a saved print area from get_photo_mockup's print_areas[] (its print_area_id): a bounded zone somebody drew on the product, such as a chest logo. Omit when surface_uuid is used.",
+            "type": "string"
+          },
+          "surface_uuid": {
+            "description": "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used.",
+            "type": "string"
+          },
+          "coverage": {
+            "description": "How much of the surface the artwork spans, as a percentage (10-100). Belongs to surface_uuid; sending it with print_area_uuid is refused. Omit to span the whole surface, which is what an all-over print usually wants. Send width and height instead to give the artwork an exact size.",
+            "type": "number",
+            "minimum": 10,
+            "maximum": 100
+          },
+          "fit": {
+            "description": "How the artwork meets the print area, which it always fills edge to edge: 'contain' keeps the proportions and fits inside (the default), 'fill' stretches to the edges, 'cover' fills and crops the overflow. Belongs to print_area_uuid; sending it with surface_uuid is refused. Leave it out to get 'contain'. To sit inside the area with room around it, send width and height instead.",
+            "type": "string",
+            "enum": [
+              "contain",
+              "fill",
+              "cover"
+            ]
+          },
+          "width": {
+            "description": "Artwork width in pixels, drawn at that exact size instead of by coverage or fit. Send together with height, and without coverage or fit. Width and height are independent, so any aspect ratio is allowed - stretching on one axis only is a supported placement.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30000
+          },
+          "height": {
+            "description": "Artwork height in pixels. Send together with width. Sending only one of the two is rejected rather than silently completed, so the aspect ratio is never guessed for you.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 30000
+          }
+        },
+        "required": [
+          "mockup_uuid",
+          "artwork_url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "render_2d_print_area",
       "description": "Render artwork onto one saved print area -- a bounded zone somebody drew on the product, such as a chest logo. Read the print_area_id values from get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
       "inputSchema": {
@@ -685,7 +923,7 @@
           },
           "is_async": {
             "default": false,
-            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
+            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately; poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
             "type": "boolean"
           },
           "print_area_uuid": {
@@ -829,7 +1067,7 @@
           },
           "is_async": {
             "default": false,
-            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
+            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately; poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
             "type": "boolean"
           },
           "surface_uuid": {
@@ -1388,7 +1626,7 @@
           },
           "is_async": {
             "default": false,
-            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately -- poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
+            "description": "Queue the render instead of waiting. When true the API returns 202 with a job_id immediately; poll with get_job, or call wait_for_job to block until it finishes and hands back result_url. Default false returns print_files + render_uuid synchronously (200). Use for long renders or when running many in parallel.",
             "type": "boolean"
           },
           "print_area_uuid": {
@@ -1977,6 +2215,23 @@
       }
     },
     {
+      "name": "replay_failed_webhook_deliveries",
+      "description": "Re-send every failed or dead delivery for a webhook endpoint in one call, e.g. after fixing your endpoint. Returns status and count: how many deliveries were queued to be sent again. To re-send a single delivery, use replay_webhook_delivery.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "description": "The id of the webhook endpoint whose failed deliveries are all sent again (from list_webhook_endpoints)"
+          }
+        },
+        "required": [
+          "endpoint_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "replay_webhook_delivery",
       "description": "Replay a single webhook delivery while preserving its event identity, e.g. after fixing your endpoint. Get delivery_id from list_webhook_deliveries.",
       "inputSchema": {
@@ -2007,6 +2262,23 @@
           "endpoint_id": {
             "type": "string",
             "description": "The id of the webhook endpoint to rotate (from list_webhook_endpoints)"
+          }
+        },
+        "required": [
+          "endpoint_id"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "send_webhook_test_event",
+      "description": "Send a signed webhook.test event to verify endpoint reachability and signature handling. Returns a test job_id; check the result with list_webhook_deliveries. Second name of test_webhook_endpoint: one tool under two names, same arguments, same behavior. Either name works.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "endpoint_id": {
+            "type": "string",
+            "description": "The id of the webhook endpoint to test (from list_webhook_endpoints)"
           }
         },
         "required": [
