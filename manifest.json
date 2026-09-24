@@ -807,6 +807,19 @@
             "type": "number",
             "minimum": 1,
             "maximum": 30000
+          },
+          "blend_mode": {
+            "description": "How the artwork sits on the product: 'multiply' (the default) keeps the material texture visible, 'normal' reproduces the artwork colors exactly. 'screen', 'lighten', 'soft_light', 'overlay' and 'darken' are also accepted.",
+            "type": "string",
+            "enum": [
+              "multiply",
+              "normal",
+              "screen",
+              "lighten",
+              "soft_light",
+              "overlay",
+              "darken"
+            ]
           }
         },
         "required": [
@@ -1392,6 +1405,133 @@
               ]
             }
           },
+          "text_layer_uuid": {
+            "description": "UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; a shorthand for one text_layers entry.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "text": {
+            "description": "Replacement text for the text_layer_uuid layer when it has one style (segment_count 1). Use text_segments for a styled layer.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "text_segments": {
+            "description": "For a styled text_layer_uuid layer (segment_count above 1): {index, text} entries. Listed segments are replaced, the rest keep their text, and each keeps its own styling. Used instead of text.",
+            "minItems": 1,
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 31,
+                  "description": "Zero-based segment index"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "Replacement text for this segment"
+                }
+              },
+              "required": [
+                "index",
+                "text"
+              ]
+            }
+          },
+          "text_font": {
+            "description": "Font UUID or PostScript name from list_fonts. Single-style layers only. Omit to keep the layer's font.",
+            "type": "string",
+            "maxLength": 255
+          },
+          "text_font_size": {
+            "description": "Font size in pixels at the mockup's native resolution. Single-style layers only. Omit to keep the original size.",
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 2000
+          },
+          "text_color": {
+            "description": "Text color as a six-digit hex code, e.g. '#1A1A1A'. Single-style layers only. Omit to keep the original color.",
+            "type": "string",
+            "pattern": "^#?[0-9a-fA-F]{6}$"
+          },
+          "text_stroke_color": {
+            "description": "Colors for the text layer's own outlines: one hex code for the front outline, or up to eight front to back; null keeps an authored color. Single-style layers only.",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#?[0-9a-fA-F]{6}$"
+              },
+              {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^#?[0-9a-fA-F]{6}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "text_fit": {
+            "description": "Long-text handling for single-style point text: 'overflow' keeps the designed size, 'shrink' scales it down to fit, 'clip' cuts it at the last character that fits. Omit for 'overflow'.",
+            "type": "string",
+            "enum": [
+              "shrink",
+              "clip",
+              "overflow"
+            ]
+          },
+          "text_vertical_align": {
+            "description": "Where text that text_fit 'shrink' scaled down sits in the original area: 'top' (the default), 'center' or 'bottom'. Single-style layers only.",
+            "type": "string",
+            "enum": [
+              "top",
+              "bottom",
+              "center"
+            ]
+          },
+          "group_layer_uuid": {
+            "description": "UUID of an editable group layer from the mockup's group_layers. Send with group_stroke_color.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "group_stroke_color": {
+            "description": "Colors for that group's outlines: one hex code for the front outline, or up to eight front to back; null keeps an authored color. The change affects everything inside the group.",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#?[0-9a-fA-F]{6}$"
+              },
+              {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^#?[0-9a-fA-F]{6}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
           "fit": {
             "default": "fill",
             "description": "How singular artwork_url fills its smart object area",
@@ -1527,8 +1667,12 @@
         "type": "object",
         "properties": {
           "mockup_id": {
-            "type": "string",
-            "description": "UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup)."
+            "description": "UUID of the photo mockup (mockup_id from list_photo_mockups, get_photo_mockup or create_photo_mockup). Send this or mockup_uuid.",
+            "type": "string"
+          },
+          "mockup_uuid": {
+            "description": "Same as mockup_id, under the name the hosted server uses. Send this or mockup_id; if both are sent they must match.",
+            "type": "string"
           },
           "artwork_url": {
             "type": "string",
@@ -1663,10 +1807,22 @@
             "type": "number",
             "minimum": 1,
             "maximum": 30000
+          },
+          "blend_mode": {
+            "description": "How the artwork sits on the product: 'multiply' (the default) keeps the material texture visible, 'normal' reproduces the artwork colors exactly. 'screen', 'lighten', 'soft_light', 'overlay' and 'darken' are also accepted.",
+            "type": "string",
+            "enum": [
+              "multiply",
+              "normal",
+              "screen",
+              "lighten",
+              "soft_light",
+              "overlay",
+              "darken"
+            ]
           }
         },
         "required": [
-          "mockup_id",
           "artwork_url"
         ],
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1963,6 +2119,133 @@
               ]
             }
           },
+          "text_layer_uuid": {
+            "description": "UUID of one editable text layer from get_mockup_details text_layers. Send with text or text_segments; a shorthand for one text_layers entry.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "text": {
+            "description": "Replacement text for the text_layer_uuid layer when it has one style (segment_count 1). Use text_segments for a styled layer.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "text_segments": {
+            "description": "For a styled text_layer_uuid layer (segment_count above 1): {index, text} entries. Listed segments are replaced, the rest keep their text, and each keeps its own styling. Used instead of text.",
+            "minItems": 1,
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 31,
+                  "description": "Zero-based segment index"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "Replacement text for this segment"
+                }
+              },
+              "required": [
+                "index",
+                "text"
+              ]
+            }
+          },
+          "text_font": {
+            "description": "Font UUID or PostScript name from list_fonts. Single-style layers only. Omit to keep the layer's font.",
+            "type": "string",
+            "maxLength": 255
+          },
+          "text_font_size": {
+            "description": "Font size in pixels at the mockup's native resolution. Single-style layers only. Omit to keep the original size.",
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 2000
+          },
+          "text_color": {
+            "description": "Text color as a six-digit hex code, e.g. '#1A1A1A'. Single-style layers only. Omit to keep the original color.",
+            "type": "string",
+            "pattern": "^#?[0-9a-fA-F]{6}$"
+          },
+          "text_stroke_color": {
+            "description": "Colors for the text layer's own outlines: one hex code for the front outline, or up to eight front to back; null keeps an authored color. Single-style layers only.",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#?[0-9a-fA-F]{6}$"
+              },
+              {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^#?[0-9a-fA-F]{6}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "text_fit": {
+            "description": "Long-text handling for single-style point text: 'overflow' keeps the designed size, 'shrink' scales it down to fit, 'clip' cuts it at the last character that fits. Omit for 'overflow'.",
+            "type": "string",
+            "enum": [
+              "shrink",
+              "clip",
+              "overflow"
+            ]
+          },
+          "text_vertical_align": {
+            "description": "Where text that text_fit 'shrink' scaled down sits in the original area: 'top' (the default), 'center' or 'bottom'. Single-style layers only.",
+            "type": "string",
+            "enum": [
+              "top",
+              "bottom",
+              "center"
+            ]
+          },
+          "group_layer_uuid": {
+            "description": "UUID of an editable group layer from the mockup's group_layers. Send with group_stroke_color.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "group_stroke_color": {
+            "description": "Colors for that group's outlines: one hex code for the front outline, or up to eight front to back; null keeps an authored color. The change affects everything inside the group.",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#?[0-9a-fA-F]{6}$"
+              },
+              {
+                "minItems": 1,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^#?[0-9a-fA-F]{6}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
           "fit": {
             "default": "fill",
             "description": "How singular artwork_url fills its smart object area",
@@ -2181,6 +2464,10 @@
               "ambient",
               "showcase"
             ]
+          },
+          "advanced_model": {
+            "description": "Advanced override for the automatic quality selection. Unsupported values are rejected. Omit for automatic selection (recommended).",
+            "type": "string"
           },
           "image_format": {
             "default": "webp",
