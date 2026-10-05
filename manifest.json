@@ -294,7 +294,7 @@
     },
     {
       "name": "get_mockup_details",
-      "description": "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs.",
+      "description": "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs. A smart object whose contents hold smart objects or live text lists them in its own smart_objects and text_layers; fill any of them by UUID in the same render, like a top-level one.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -328,7 +328,7 @@
     },
     {
       "name": "get_psd_mockup",
-      "description": "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs. Family-name spelling of get_mockup_details: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs. A smart object whose contents hold smart objects or live text lists them in its own smart_objects and text_layers; fill any of them by UUID in the same render, like a top-level one. Family-name spelling of get_mockup_details: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {

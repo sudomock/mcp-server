@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.3.0] - 2026-10-05
+
+### Added
+
+- `get_mockup_details` and the other tools that return a PSD mockup keep the
+  smart objects and live text found inside a smart object. Each such smart
+  object lists them in its own `smart_objects` and `text_layers`, with the same
+  fields as a top-level entry; its position and quad are measured in the
+  enclosing smart object's own pixels. Fill any of them by UUID in the same
+  render, like a top-level one.
+- A render that sends artwork to a smart object and also fills a slot inside it
+  is refused with `NESTED_SLOT_CONFLICT`. An upload whose smart object contents
+  could not be read carries the warning `PSD_NESTED_CONTENTS_UNAVAILABLE`; that
+  smart object stays one slot and still renders as designed.
+
 ## [3.2.0] - 2026-09-25
 
 ### Added

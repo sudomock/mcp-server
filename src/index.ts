@@ -360,6 +360,81 @@ function publicPosition(value: unknown): Record<string, unknown> {
   };
 }
 
+function publicSmartObject(value: unknown): Record<string, unknown> {
+  const smartObject = asRecord(value);
+  return {
+    uuid: smartObject.uuid ?? null,
+    name: smartObject.name ?? null,
+    size: publicSize(smartObject.size),
+    position: publicPosition(smartObject.position),
+    print_area_presets: Array.isArray(smartObject.print_area_presets)
+      ? smartObject.print_area_presets.map((rawPreset) => {
+          const preset = asRecord(rawPreset);
+          return {
+            uuid: preset.uuid ?? null,
+            name: preset.name ?? null,
+            thumbnails: Array.isArray(preset.thumbnails)
+              ? preset.thumbnails.map((rawThumbnail) => {
+                  const thumbnail = asRecord(rawThumbnail);
+                  return {
+                    width: thumbnail.width ?? null,
+                    url: thumbnail.url ?? null,
+                  };
+                })
+              : [],
+            size: publicSize(preset.size),
+            position: publicPosition(preset.position),
+          };
+        })
+      : [],
+    layer_name: smartObject.layer_name ?? null,
+    quad: smartObject.quad ?? null,
+    blend_mode: smartObject.blend_mode ?? null,
+    instance_count: smartObject.instance_count ?? null,
+    ...(Array.isArray(smartObject.smart_objects) &&
+      smartObject.smart_objects.length > 0
+        ? { smart_objects: smartObject.smart_objects.map(publicSmartObject) }
+        : {}),
+    ...(Array.isArray(smartObject.text_layers) &&
+      smartObject.text_layers.length > 0
+        ? { text_layers: smartObject.text_layers.map(publicTextLayer) }
+        : {}),
+  };
+}
+
+function publicTextLayer(value: unknown): Record<string, unknown> {
+  const layer = asRecord(value);
+  return {
+    uuid: layer.uuid ?? null,
+    name: layer.name ?? null,
+    text_content: layer.text_content ?? null,
+    font_postscript_name: layer.font_postscript_name ?? null,
+    font_size: layer.font_size ?? null,
+    color: layer.color ?? null,
+    font_available: layer.font_available ?? null,
+    is_editable: layer.is_editable === true,
+    segment_count: layer.segment_count ?? 1,
+    segments: Array.isArray(layer.segments)
+      ? layer.segments.map((rawSegment) => {
+          const segment = asRecord(rawSegment);
+          return {
+            index: segment.index ?? null,
+            text: segment.text ?? null,
+            font_postscript_name: segment.font_postscript_name ?? null,
+            font_size: segment.font_size ?? null,
+            color: segment.color ?? null,
+          };
+        })
+      : layer.segments ?? null,
+    visible: layer.visible ?? null,
+    has_stroke_effect: layer.has_stroke_effect === true,
+    stroke_count: layer.stroke_count ?? 0,
+    has_color_overlay: layer.has_color_overlay === true,
+    has_clipped_artwork: layer.has_clipped_artwork ?? null,
+    suggested_edit_together: layer.suggested_edit_together ?? null,
+  };
+}
+
 function publicMockupData(value: unknown): Record<string, unknown> {
   const mockup = asRecord(value);
   return {
@@ -369,73 +444,10 @@ function publicMockupData(value: unknown): Record<string, unknown> {
     width: mockup.width ?? null,
     height: mockup.height ?? null,
     smart_objects: Array.isArray(mockup.smart_objects)
-      ? mockup.smart_objects.map((item) => {
-          const smartObject = asRecord(item);
-          return {
-            uuid: smartObject.uuid ?? null,
-            name: smartObject.name ?? null,
-            size: publicSize(smartObject.size),
-            position: publicPosition(smartObject.position),
-            print_area_presets: Array.isArray(smartObject.print_area_presets)
-              ? smartObject.print_area_presets.map((rawPreset) => {
-                  const preset = asRecord(rawPreset);
-                  return {
-                    uuid: preset.uuid ?? null,
-                    name: preset.name ?? null,
-                    thumbnails: Array.isArray(preset.thumbnails)
-                      ? preset.thumbnails.map((rawThumbnail) => {
-                          const thumbnail = asRecord(rawThumbnail);
-                          return {
-                            width: thumbnail.width ?? null,
-                            url: thumbnail.url ?? null,
-                          };
-                        })
-                      : [],
-                    size: publicSize(preset.size),
-                    position: publicPosition(preset.position),
-                  };
-                })
-              : [],
-            layer_name: smartObject.layer_name ?? null,
-            quad: smartObject.quad ?? null,
-            blend_mode: smartObject.blend_mode ?? null,
-            instance_count: smartObject.instance_count ?? null,
-          };
-        })
+      ? mockup.smart_objects.map(publicSmartObject)
       : [],
     text_layers: Array.isArray(mockup.text_layers)
-      ? mockup.text_layers.map((item) => {
-          const layer = asRecord(item);
-          return {
-            uuid: layer.uuid ?? null,
-            name: layer.name ?? null,
-            text_content: layer.text_content ?? null,
-            font_postscript_name: layer.font_postscript_name ?? null,
-            font_size: layer.font_size ?? null,
-            color: layer.color ?? null,
-            font_available: layer.font_available ?? null,
-            is_editable: layer.is_editable === true,
-            segment_count: layer.segment_count ?? 1,
-            segments: Array.isArray(layer.segments)
-              ? layer.segments.map((rawSegment) => {
-                  const segment = asRecord(rawSegment);
-                  return {
-                    index: segment.index ?? null,
-                    text: segment.text ?? null,
-                    font_postscript_name: segment.font_postscript_name ?? null,
-                    font_size: segment.font_size ?? null,
-                    color: segment.color ?? null,
-                  };
-                })
-              : layer.segments ?? null,
-            visible: layer.visible ?? null,
-            has_stroke_effect: layer.has_stroke_effect === true,
-            stroke_count: layer.stroke_count ?? 0,
-            has_color_overlay: layer.has_color_overlay === true,
-            has_clipped_artwork: layer.has_clipped_artwork ?? null,
-            suggested_edit_together: layer.suggested_edit_together ?? null,
-          };
-        })
+      ? mockup.text_layers.map(publicTextLayer)
       : [],
     thumbnails: Array.isArray(mockup.thumbnails)
       ? mockup.thumbnails.map((rawThumbnail) => {
@@ -886,7 +898,7 @@ server.tool(
 
 server.tool(
   "get_mockup_details",
-  "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs.",
+  "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs. A smart object whose contents hold smart objects or live text lists them in its own smart_objects and text_layers; fill any of them by UUID in the same render, like a top-level one.",
   {
     mockup_uuid: z.string().describe("The UUID of the mockup to inspect"),
   },
