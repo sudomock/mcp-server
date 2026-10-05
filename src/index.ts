@@ -969,11 +969,12 @@ server.tool(
 // on a photo mockup print area and on a video's still frame alike: 'fill',
 // 'fit' and 'crop', and 'contain' and 'cover', the older names for 'fit' and
 // 'crop', which it still accepts. A name is sent as given. On a smart object
-// this package keeps 'fill' as its default when fit is left out; on a print
-// area nothing is sent and the API's own default applies.
+// the default is 'fit', the API's own (founder decision 2026-10-05), and the
+// package sends it when fit is left out; on a print area nothing is sent and
+// the API's own default applies.
 const FIT_MODES = ["fill", "fit", "crop", "contain", "cover"] as const;
 const SMART_OBJECT_FIT_HELP =
-  "'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fill'.";
+  "'fill' stretches the artwork to the bounds, 'fit' fits it inside keeping its proportions, 'crop' covers the area keeping its proportions and cuts the overflow. 'contain' and 'cover' are the older names for 'fit' and 'crop' and are still accepted. Default 'fit'.";
 
 const smartObjectInputSchema = z
   .object({
@@ -991,7 +992,7 @@ const smartObjectInputSchema = z
           .describe("MIME type for base64 artwork; defaults to image/png"),
         fit: z
           .enum(FIT_MODES)
-          .default("fill")
+          .default("fit")
           .describe(`How the artwork meets the smart object area. ${SMART_OBJECT_FIT_HELP}`),
         size: z
           .object({
@@ -1238,7 +1239,7 @@ server.tool(
     ...SINGLE_LAYER_SHORTCUT,
     fit: z
       .enum(FIT_MODES)
-      .default("fill")
+      .default("fit")
       .describe(`How the singular artwork_url meets its smart object area. ${SMART_OBJECT_FIT_HELP}`),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
     image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (default 2048)"),
@@ -2137,7 +2138,7 @@ server.tool(
     artwork_base64: z.string().optional().describe("RENDER MODE: raw base64-encoded artwork bytes (no data: prefix). Provide this OR artwork_url."),
     artwork_content_type: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]).optional().describe("MIME type for artwork_base64 (defaults to image/png if omitted)."),
     image_url: z.string().optional().describe("RAW-IMAGE MODE: a public https png/jpg URL to animate without a mockup. Supply this OR (mockup_uuid + smart_object_uuid + artwork), never both."),
-    fit: z.enum(FIT_MODES).default("fill").describe(`RENDER MODE: how the artwork meets the smart object area in the still frame. ${SMART_OBJECT_FIT_HELP}`),
+    fit: z.enum(FIT_MODES).default("fit").describe(`RENDER MODE: how the artwork meets the smart object area in the still frame. ${SMART_OBJECT_FIT_HELP}`),
     asset_width: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork width in pixels (overrides fit sizing)."),
     asset_height: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork height in pixels (overrides fit sizing)."),
     asset_top: z.number().int().optional().describe("RENDER MODE: artwork top offset in pixels within the smart object area."),
