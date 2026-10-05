@@ -469,6 +469,18 @@ function publicMockupData(value: unknown): Record<string, unknown> {
   };
 }
 
+/** One node of a template's layer tree, with the fields the API publishes for it. */
+function publicLayer(value: unknown): Record<string, unknown> {
+  const layer = asRecord(value);
+  return {
+    uuid: layer.uuid ?? null,
+    name: layer.name ?? null,
+    kind: layer.kind ?? null,
+    visible: layer.visible ?? null,
+    children: Array.isArray(layer.children) ? layer.children.map(publicLayer) : [],
+  };
+}
+
 function publicMockupResult(result: unknown): Record<string, unknown> {
   const envelope = asRecord(result);
   return {
@@ -898,19 +910,33 @@ server.tool(
 
 server.tool(
   "get_mockup_details",
-  "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs. A smart object whose contents hold smart objects or live text lists them in its own smart_objects and text_layers; fill any of them by UUID in the same render, like a top-level one.",
+  "Get full details of a mockup: smart object UUIDs, layer names, dimensions, positions, blend modes, and thumbnail URLs. A smart object whose contents hold smart objects or live text lists them in its own smart_objects and text_layers; fill any of them by UUID in the same render, like a top-level one. Set include_layers to true to also get data.layers: every layer of the template, nested the way Photoshop's Layers panel shows it and listed front-most first, each with uuid, name, kind, visible and children. A smart object whose contents hold layers you can fill lists those layers as its children; copies of one smart object share their contents, which are listed under one copy. Layers hidden in the file are listed too, with visible false. Pass a layer's uuid in hidden_layers on render_mockup to leave that layer out of a render. Costs 0 credits.",
   {
     mockup_uuid: z.string().describe("The UUID of the mockup to inspect"),
+    include_layers: z
+      .boolean()
+      .default(false)
+      .describe("Also return every layer of the template in data.layers, with the uuids hidden_layers takes. Default false."),
   },
-  async ({ mockup_uuid }) => {
-    const result = await apiRequest({
-      method: "GET",
-      path: `/api/v1/mockups/${mockup_uuid}`,
-    });
+  async ({ mockup_uuid, include_layers }) => {
+    const details = { method: "GET", path: `/api/v1/mockups/${mockup_uuid}` } as const;
+    let output: Record<string, unknown>;
+    if (!include_layers) {
+      output = publicMockupResult(await apiRequest(details));
+    } else {
+      // The layer tree is a second read of the same template, so both run at once.
+      const [result, tree] = await Promise.all([
+        apiRequest(details),
+        apiRequest({ method: "GET", path: `/api/v1/psd-mockups/${mockup_uuid}/layers` }),
+      ]);
+      output = publicMockupResult(result);
+      const layers = asRecord(asRecord(tree).data).layers;
+      (output.data as Record<string, unknown>).layers = Array.isArray(layers) ? layers.map(publicLayer) : [];
+    }
     return {
       content: [{
         type: "text" as const,
-        text: JSON.stringify(publicMockupResult(result), null, 2),
+        text: JSON.stringify(output, null, 2),
       }],
     };
   }
@@ -1220,7 +1246,7 @@ function singleGroupLayer(args: SingleLayerShortcut): Record<string, unknown> | 
 
 server.tool(
   "render_mockup",
-  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Name what to fill with any of these, alone or together: smart_object_uuid + artwork_url for one smart object, smart_objects entries ({uuid, asset or color}) for one or more, text_layers entries ({uuid, text or segments}), or text_layer_uuid + text for one text layer. Sent together they are combined into one render: the smart_object_uuid entry comes before the smart_objects entries, and the text_layer_uuid entry before the text_layers entries. A call that names nothing to render returns an error. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
+  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Name what to fill with any of these, alone or together: smart_object_uuid + artwork_url for one smart object, smart_objects entries ({uuid, asset or color}) for one or more, text_layers entries ({uuid, text or segments}), or text_layer_uuid + text for one text layer. Sent together they are combined into one render: the smart_object_uuid entry comes before the smart_objects entries, and the text_layer_uuid entry before the text_layers entries. A call that names nothing to render returns an error. To leave layers out of one render, pass their uuids in hidden_layers; get_mockup_details with include_layers lists every layer with its uuid, including the layers inside a smart object's contents. Hiding a group hides every layer inside it, a layer clipped to a hidden layer is hidden with it, as in Photoshop, and a layer hidden inside a smart object's contents is hidden in every copy of that smart object. hidden_layers works on its own. A layer cannot be hidden and edited in the same call, and a smart object that receives artwork cannot have layers inside it hidden. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
   {
     mockup_uuid: z.string().describe("UUID of the mockup template (from list_mockups)"),
     smart_object_uuid: z.string().optional().describe("UUID of one smart object layer (from get_mockup_details). Send with artwork_url, or leave both out and use smart_objects or text_layers. With smart_objects, this entry comes first."),
@@ -1236,6 +1262,12 @@ server.tool(
       .max(50)
       .optional()
       .describe("Text layer overrides from get_mockup_details, each with a uuid and exactly one of text or segments. Works on its own; with text_layer_uuid these entries follow that one."),
+    // An empty list counts as not sent here too.
+    hidden_layers: z
+      .array(z.string().regex(LAYER_UUID))
+      .max(50)
+      .optional()
+      .describe("Up to 50 layer UUIDs, from get_mockup_details with include_layers, to leave out of this render, including layers inside a smart object's contents. Hiding a group hides every layer inside it. Works on its own."),
     ...SINGLE_LAYER_SHORTCUT,
     fit: z
       .enum(FIT_MODES)
@@ -1278,15 +1310,17 @@ server.tool(
     // An empty list names nothing, so it counts as not sent.
     const listedSmartObjects = args.smart_objects ?? [];
     const listedTextLayers = args.text_layers ?? [];
+    const hiddenLayers = args.hidden_layers ?? [];
     if (
       !listedSmartObjects.length &&
       !hasSmartObjectUuid &&
       !listedTextLayers.length &&
       !shortcutTextLayer &&
-      !shortcutGroupLayer
+      !shortcutGroupLayer &&
+      !hiddenLayers.length
     ) {
       throw new Error(
-        "Nothing to render: provide smart_object_uuid with artwork_url, smart_objects, text_layers, text_layer_uuid with text or text_segments, or group_layer_uuid with group_stroke_color."
+        "Nothing to render: provide smart_object_uuid with artwork_url, smart_objects, text_layers, text_layer_uuid with text or text_segments, group_layer_uuid with group_stroke_color, or hidden_layers."
       );
     }
 
@@ -1351,6 +1385,7 @@ server.tool(
     if (smartObjects.length) body.smart_objects = smartObjects;
     if (textLayers.length) body.text_layers = textLayers;
     if (shortcutGroupLayer) body.group_layers = [shortcutGroupLayer];
+    if (hiddenLayers.length) body.hidden_layers = hiddenLayers;
 
     if (args.export_label) {
       body.export_label = args.export_label;
