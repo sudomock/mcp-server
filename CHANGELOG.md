@@ -14,7 +14,9 @@
   true the result also carries `data.layers`, every layer of the template with
   the UUID `hidden_layers` takes, nested the way Photoshop's Layers panel shows
   it. A smart object whose contents hold layers you can fill lists those
-  layers as its children. The hosted server takes the same two arguments.
+  layers as its children. An artboard has kind `artboard`, and its own layers
+  are listed right before it at the top level. The hosted server takes the
+  same two arguments.
 
 ## [3.4.0] - 2026-10-05
 
