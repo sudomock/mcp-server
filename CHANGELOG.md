@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.4.0] - 2026-10-05
+
+### Changed
+
+- A smart object's artwork is fitted inside its area with its proportions kept
+  when `fit` is left out, as the API does: `render_mockup`,
+  `render_psd_mockup` and `render_video` now default to `fit` instead of
+  `fill`. Send `fill` to stretch the artwork to the bounds. The hosted server
+  at `mcp.sudomock.com` sends the same default.
+
 ## [3.3.0] - 2026-10-05
 
 ### Added
