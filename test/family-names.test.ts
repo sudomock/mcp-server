@@ -212,7 +212,9 @@ const PINNED_REQUESTS: Array<[tool: string, args: Record<string, unknown>, wire:
             uuid: "s1",
             asset: {
               url: ART,
-              fit: "fill",
+              // 'fit' since 3.4.0: the default follows the API's (founder
+              // decision 2026-10-05); every other field is as 2.8.1 sent it.
+              fit: "fit",
               rotate: 0,
               flip_horizontal: false,
               flip_vertical: false,
