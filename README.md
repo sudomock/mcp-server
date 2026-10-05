@@ -44,8 +44,8 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | Tool | Description | Credits |
 |------|-------------|---------|
 | `list_mockups` | List your uploaded mockup templates | 0 |
-| `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes | 0 |
-| `render_mockup` | Render a mockup with artwork and/or editable text | 1 |
+| `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes; with `include_layers`, every layer and its UUID, including the layers inside smart objects | 0 |
+| `render_mockup` | Render a mockup with artwork and/or editable text; `hidden_layers` leaves chosen layers out | 1 |
 | `remove_background` | Get a transparent-PNG cutout through a 7-day signed URL | 25 |
 | `list_fonts` | List the fonts available for text layers, including your uploads | 0 |
 | `create_upload_url` | Get an upload URL for a local file and the file URL it will have | 0 |
