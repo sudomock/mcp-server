@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.5.0] - 2026-10-06
 
 ### Added
 
@@ -138,7 +138,7 @@
 
 - The 3.0.0 tool renaming is reverted. Tool names are the ones 2.8.0 shipped, so an existing setup keeps working without any change. Product naming stays on the visible surfaces (site, docs, API paths).
 
-## [Unreleased]
+## [3.5.0] - 2026-10-06
 
 ## [2.8.0] - 2026-09-18
 
