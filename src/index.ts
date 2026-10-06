@@ -1274,9 +1274,12 @@ server.tool(
       .default("fit")
       .describe(`How the singular artwork_url meets its smart object area. ${SMART_OBJECT_FIT_HELP}`),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
-    image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (default 2048)"),
+    image_size: z
+      .union([z.number().min(100).max(10000), z.literal("original")])
+      .default(2048)
+      .describe("Output width in pixels (100-10000, default 2048), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (default 90)"),
-    dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution metadata (72-2400). Does not change pixel size -- use image_size. jpg/png recommended for widest print-tool compatibility."),
+    dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution metadata (72-2400). Does not change pixel size; use image_size. With image_size 'original' and no dpi, the file carries the PSD's own resolution. jpg/png recommended for widest print-tool compatibility."),
     rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
     flip_horizontal: z.boolean().default(false).describe("Mirror artwork left-right"),
     flip_vertical: z.boolean().default(false).describe("Mirror artwork top-bottom"),
