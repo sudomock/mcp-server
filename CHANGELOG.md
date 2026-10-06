@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.6.0] - 2026-10-06
+
+### Added
+
+- `render_mockup` and `render_psd_mockup` take `image_size: "original"` to
+  render a template at its own size and resolution: the output has the
+  template's own width, its height follows the template's proportions, and
+  the file carries the resolution the PSD was saved with unless `dpi` is sent.
+  A number still sets the output width, and the default stays 2048. A template
+  uploaded before this option existed answers `REUPLOAD_REQUIRED` for
+  `"original"`; uploading it again fixes that. The hosted server at
+  mcp.sudomock.com takes `"original"` too.
+
 ## [3.5.0] - 2026-10-06
 
 ### Added
@@ -137,8 +150,6 @@
 ### Changed
 
 - The 3.0.0 tool renaming is reverted. Tool names are the ones 2.8.0 shipped, so an existing setup keeps working without any change. Product naming stays on the visible surfaces (site, docs, API paths).
-
-## [3.5.0] - 2026-10-06
 
 ## [2.8.0] - 2026-09-18
 
