@@ -1302,7 +1302,7 @@
                     },
                     "blur": {
                       "default": 0,
-                      "type": "integer",
+                      "type": "number",
                       "minimum": 0,
                       "maximum": 100
                     }
@@ -2043,7 +2043,7 @@
                     },
                     "blur": {
                       "default": 0,
-                      "type": "integer",
+                      "type": "number",
                       "minimum": 0,
                       "maximum": 100
                     }

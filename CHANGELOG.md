@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.6.1] - 2026-10-18
+
+### Fixed
+
+- `adjustment_layers.blur` on a `smart_objects` entry of `render_mockup` and
+  `render_psd_mockup` takes a decimal amount from 0 to 100, such as `2.5`, as
+  the API does. It took only a whole number, while the top-level `blur`
+  already took a decimal. A whole number behaves as before.
+
 ## [3.6.0] - 2026-10-06
 
 ### Added
