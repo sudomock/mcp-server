@@ -1068,7 +1068,7 @@ const smartObjectInputSchema = z
         opacity: z.number().int().min(0).max(100).default(100),
         saturation: z.number().int().min(-100).max(100).default(0),
         vibrance: z.number().int().min(-100).max(100).default(0),
-        blur: z.number().int().min(0).max(100).default(0),
+        blur: z.number().min(0).max(100).default(0),
       })
       .optional()
       .describe("Optional artwork adjustments"),
