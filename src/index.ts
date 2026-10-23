@@ -2642,9 +2642,16 @@ server.tool(
     // The signed URL is used here and discarded. It is deliberately not part of
     // the tool result: it is a bearer capability, and a tool result is a logged,
     // retained channel.
+    // The artwork bucket admits image types only, so an image goes up as what
+    // it is; a PSD bucket takes any type.
+    const extension = (file_path.split(".").pop() ?? "").toLowerCase();
+    const contentType =
+      kind === "artwork"
+        ? ({ png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif" } as Record<string, string>)[extension] ?? "application/octet-stream"
+        : "application/octet-stream";
     const put = await fetch(uploadUrl, {
       method: "PUT",
-      headers: { "Content-Type": "application/octet-stream" },
+      headers: { "Content-Type": contentType },
       body: new Uint8Array(bytes),
     });
     if (!put.ok) {
