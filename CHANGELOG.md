@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.7.0] - 2026-10-24
+
+### Added
+
+- `tile` repeats the artwork as a pattern across the whole target. On a PSD
+  template it goes in a `smart_objects` entry's `asset`: `size` is one tile,
+  `fit` places the artwork inside each tile, and `position` sets where the
+  grid starts. On a photo mockup it is a parameter of `render_photo_mockup`,
+  `render_2d_mockup`, `render_2d_surface` and `render_2d_print_area`: the
+  sizing answer (`coverage`, `fit`, or `width` and `height`) is one tile, and
+  `position` with `offset_x` and `offset_y` sets where the grid starts. A tile
+  needs a size; without one the API answers 422. The hosted server at
+  mcp.sudomock.com takes `tile` too.
+- Each surface of a photo mockup carries a `label`, what was detected there,
+  such as `wall` or `pillow`, so you can tell the surfaces apart before
+  choosing one.
+
+### Fixed
+
+- `upload_local_file` with kind `artwork` failed with 400 for every image. It
+  now sends the image as its own type.
+
 ## [3.6.1] - 2026-10-18
 
 ### Fixed

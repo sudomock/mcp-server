@@ -565,7 +565,7 @@ function publicTwoDMockup(value: unknown): Record<string, unknown> {
     surfaces: Array.isArray(mockup.surfaces)
       ? mockup.surfaces.map((rawSurface) => {
           const surface = asRecord(rawSurface);
-          return { surface_uuid: surface.surface_uuid ?? null };
+          return { surface_uuid: surface.surface_uuid ?? null, label: surface.label ?? null };
         })
       : [],
     version: mockup.version ?? null,
@@ -1041,6 +1041,10 @@ const smartObjectInputSchema = z
           .boolean()
           .optional()
           .describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
+        tile: z
+          .boolean()
+          .optional()
+          .describe("Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size."),
       })
       .refine((asset) => asset.url || asset.base64, "Provide asset.url or asset.base64")
       .optional(),
@@ -1539,7 +1543,7 @@ server.tool(
       surfaces: Array.isArray(details.surfaces)
         ? details.surfaces.map((surface) => {
             const value = surface as Record<string, unknown>;
-            return { surface_uuid: value.surface_uuid };
+            return { surface_uuid: value.surface_uuid, label: value.label ?? null };
           })
         : [],
     };
@@ -1560,6 +1564,10 @@ const TWO_D_SHARED = {
   mockup_uuid: z.string().describe("UUID of the photo mockup template (from list_2d_mockups, returned as mockup_id)."),
   artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
   remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
+  tile: z
+    .boolean()
+    .optional()
+    .describe("Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer."),
   opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
   brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
   contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment (-100 to 100)"),
@@ -1610,6 +1618,7 @@ type TwoDSharedArgs = {
   mockup_uuid: string;
   artwork_url: string;
   remove_background: boolean;
+  tile?: boolean;
   opacity: number;
   brightness: number;
   contrast: number;
@@ -1744,6 +1753,7 @@ async function renderTwoD(
     ...(args.offset_x === undefined ? {} : { offset_x: args.offset_x }),
     ...(args.offset_y === undefined ? {} : { offset_y: args.offset_y }),
     ...(args.rotation === undefined ? {} : { rotation: args.rotation }),
+    ...(args.tile ? { tile: true } : {}),
     ...placement,
   };
 
