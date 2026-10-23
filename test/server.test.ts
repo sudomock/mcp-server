@@ -1012,7 +1012,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
     // A surface is named and nothing else. The retired `coverage: "full"` that
     // rode along stated nothing a caller could act on while reading exactly
     // like a dial they could turn.
-    assert.deepEqual(created.surfaces, [{ surface_uuid: "surface-1" }]);
+    assert.deepEqual(created.surfaces, [{ surface_uuid: "surface-1", label: null }]);
 
     const detailsResult = await client.callTool({
       name: "get_2d_mockup",
@@ -1022,7 +1022,7 @@ test("2D create is sync-default (201) and every 2D path is plural + black-box", 
       (detailsResult.content as Array<{ type: "text"; text: string }>)[0].text
     );
     assert.deepEqual(details.data.print_areas, [{ print_area_id: "area-1", points: quad }]);
-    assert.deepEqual(details.data.surfaces, [{ surface_uuid: "surface-1" }]);
+    assert.deepEqual(details.data.surfaces, [{ surface_uuid: "surface-1", label: null }]);
     assert.ok(!("quads" in details.data));
 
     const listResult = await client.callTool({
