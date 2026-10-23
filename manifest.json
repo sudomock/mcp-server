@@ -693,6 +693,10 @@
             "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
             "type": "boolean"
           },
+          "tile": {
+            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
+            "type": "boolean"
+          },
           "opacity": {
             "default": 100,
             "description": "Artwork opacity percentage (0-100)",
@@ -861,6 +865,10 @@
             "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
             "type": "boolean"
           },
+          "tile": {
+            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
+            "type": "boolean"
+          },
           "opacity": {
             "default": 100,
             "description": "Artwork opacity percentage (0-100)",
@@ -1005,6 +1013,10 @@
           "remove_background": {
             "default": false,
             "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+            "type": "boolean"
+          },
+          "tile": {
+            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
             "type": "boolean"
           },
           "opacity": {
@@ -1241,6 +1253,10 @@
                     },
                     "remove_background": {
                       "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+                      "type": "boolean"
+                    },
+                    "tile": {
+                      "description": "Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size.",
                       "type": "boolean"
                     }
                   }
@@ -1722,6 +1738,10 @@
             "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
             "type": "boolean"
           },
+          "tile": {
+            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
+            "type": "boolean"
+          },
           "opacity": {
             "default": 100,
             "description": "Artwork opacity percentage (0-100)",
@@ -1982,6 +2002,10 @@
                     },
                     "remove_background": {
                       "description": "Remove the artwork's background before placing it. Adds 25 credits per artwork.",
+                      "type": "boolean"
+                    },
+                    "tile": {
+                      "description": "Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size.",
                       "type": "boolean"
                     }
                   }
