@@ -697,6 +697,12 @@
             "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
             "type": "boolean"
           },
+          "tile_spacing": {
+            "description": "Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true.",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
           "opacity": {
             "default": 100,
             "description": "Artwork opacity percentage (0-100)",
@@ -869,6 +875,12 @@
             "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
             "type": "boolean"
           },
+          "tile_spacing": {
+            "description": "Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true.",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
           "opacity": {
             "default": 100,
             "description": "Artwork opacity percentage (0-100)",
@@ -1018,6 +1030,12 @@
           "tile": {
             "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
             "type": "boolean"
+          },
+          "tile_spacing": {
+            "description": "Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true.",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
           },
           "opacity": {
             "default": 100,
@@ -1258,6 +1276,12 @@
                     "tile": {
                       "description": "Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size.",
                       "type": "boolean"
+                    },
+                    "tile_spacing": {
+                      "description": "Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
                     }
                   }
                 },
@@ -1742,6 +1766,12 @@
             "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
             "type": "boolean"
           },
+          "tile_spacing": {
+            "description": "Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true.",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
           "opacity": {
             "default": 100,
             "description": "Artwork opacity percentage (0-100)",
@@ -2007,6 +2037,12 @@
                     "tile": {
                       "description": "Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size.",
                       "type": "boolean"
+                    },
+                    "tile_spacing": {
+                      "description": "Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true.",
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 100
                     }
                   }
                 },

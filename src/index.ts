@@ -1045,6 +1045,12 @@ const smartObjectInputSchema = z
           .boolean()
           .optional()
           .describe("Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size."),
+        tile_spacing: z
+          .number()
+          .min(0)
+          .max(100)
+          .optional()
+          .describe("Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true."),
       })
       .refine((asset) => asset.url || asset.base64, "Provide asset.url or asset.base64")
       .optional(),
@@ -1568,6 +1574,12 @@ const TWO_D_SHARED = {
     .boolean()
     .optional()
     .describe("Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer."),
+  tile_spacing: z
+    .number()
+    .min(0)
+    .max(100)
+    .optional()
+    .describe("Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true."),
   opacity: z.number().min(0).max(100).default(100).describe("Artwork opacity percentage (0-100)"),
   brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment (-150 to 150)"),
   contrast: z.number().min(-100).max(100).default(0).describe("Contrast adjustment (-100 to 100)"),
@@ -1619,6 +1631,7 @@ type TwoDSharedArgs = {
   artwork_url: string;
   remove_background: boolean;
   tile?: boolean;
+  tile_spacing?: number;
   opacity: number;
   brightness: number;
   contrast: number;
@@ -1754,6 +1767,7 @@ async function renderTwoD(
     ...(args.offset_y === undefined ? {} : { offset_y: args.offset_y }),
     ...(args.rotation === undefined ? {} : { rotation: args.rotation }),
     ...(args.tile ? { tile: true } : {}),
+    ...(args.tile_spacing === undefined ? {} : { tile_spacing: args.tile_spacing }),
     ...placement,
   };
 
