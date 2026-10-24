@@ -2205,6 +2205,16 @@ server.tool(
     asset_height: z.number().int().min(1).optional().describe("RENDER MODE: custom artwork height in pixels (overrides fit sizing)."),
     asset_top: z.number().int().optional().describe("RENDER MODE: artwork top offset in pixels within the smart object area."),
     asset_left: z.number().int().optional().describe("RENDER MODE: artwork left offset in pixels within the smart object area."),
+    tile: z
+      .boolean()
+      .optional()
+      .describe("RENDER MODE: Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size."),
+    tile_spacing: z
+      .number()
+      .min(0)
+      .max(100)
+      .optional()
+      .describe("RENDER MODE: Gap between tiles as a percentage of the tile size, 0 to 100. The horizontal gap is that percent of the tile width, the vertical gap that percent of the tile height. Used only when tile is true."),
     duration_seconds: z
       .number()
       .int()
@@ -2269,6 +2279,10 @@ server.tool(
       if (args.asset_top !== undefined || args.asset_left !== undefined) {
         asset.position = { top: args.asset_top, left: args.asset_left };
       }
+      // Only when named, so a clip that asks for no pattern sends the body it
+      // always sent.
+      if (args.tile) asset.tile = true;
+      if (args.tile_spacing !== undefined) asset.tile_spacing = args.tile_spacing;
       body.mockup_uuid = args.mockup_uuid;
       body.smart_objects = [{ uuid: args.smart_object_uuid, asset }];
     }
