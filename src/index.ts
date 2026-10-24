@@ -1835,7 +1835,7 @@ async function renderTwoD(
 server.registerTool(
   "render_2d_surface",
   {
-    description: "Render artwork across a whole product surface -- an all-over print. Every printable product in the photo is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+    description: "Render artwork across a whole product surface -- an all-over print. Every printable product in the photo, and the main wall of a room photo, is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
     inputSchema: twoDRenderInput("surface", {
       ...TWO_D_SHARED,
       surface_uuid: z.string().describe("UUID of a product surface from get_2d_mockup's surfaces[]."),
@@ -1961,7 +1961,7 @@ server.tool(
 
 server.tool(
   "get_2d_mockup",
-  "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+  "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo and one for the main wall of a room photo, each with a label. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the photo mockup (mockup_id from list_2d_mockups)"),
   },
@@ -2847,7 +2847,7 @@ const PHOTO_RENDER_TARGET = {
     .string()
     .optional()
     .describe(
-      "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used."
+      "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product or the main wall of a room photo, for an all-over print. Omit when print_area_uuid is used."
     ),
   coverage: z
     .number()
