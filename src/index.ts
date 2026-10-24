@@ -558,9 +558,9 @@ function publicTwoDMockup(value: unknown): Record<string, unknown> {
     source_width: mockup.source_width ?? null,
     source_height: mockup.source_height ?? null,
     print_areas: areas.map(publicPrintArea),
-    // One entry per printable product in the photo. There is no field here
-    // saying what kind of surface it is: being listed is the whole statement.
-    // The fixed "coverage: full" that used to ride along named nothing the
+    // One entry per printable product in the photo, with label naming what
+    // was detected on it, such as "wall" or "pillow". The fixed
+    // "coverage: full" that used to ride along named nothing the
     // caller could act on while reading exactly like a dial they could turn.
     surfaces: Array.isArray(mockup.surfaces)
       ? mockup.surfaces.map((rawSurface) => {
