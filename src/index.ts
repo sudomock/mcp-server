@@ -558,8 +558,9 @@ function publicTwoDMockup(value: unknown): Record<string, unknown> {
     source_width: mockup.source_width ?? null,
     source_height: mockup.source_height ?? null,
     print_areas: areas.map(publicPrintArea),
-    // One entry per printable product in the photo, with label naming what
-    // was detected on it, such as "wall" or "pillow". The fixed
+    // One entry per printable product in the photo, or the main wall of a room
+    // photo, with label naming what was detected on it, such as "wall" or
+    // "pillow". The fixed
     // "coverage: full" that used to ride along named nothing the
     // caller could act on while reading exactly like a dial they could turn.
     surfaces: Array.isArray(mockup.surfaces)
@@ -1835,10 +1836,10 @@ async function renderTwoD(
 server.registerTool(
   "render_2d_surface",
   {
-    description: "Render artwork across a whole product surface -- an all-over print. Every printable product in the photo, and the main wall of a room photo, is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+    description: "Render artwork across a whole product surface: an all-over print. Every printable product in the photo, and the main wall of a room photo, is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
     inputSchema: twoDRenderInput("surface", {
       ...TWO_D_SHARED,
-      surface_uuid: z.string().describe("UUID of a product surface from get_2d_mockup's surfaces[]."),
+      surface_uuid: z.string().describe("UUID of a surface from get_2d_mockup's surfaces[]: a printable product in the photo, or the main wall of a room photo."),
       coverage: z
         .number()
         .min(10)
@@ -2987,7 +2988,7 @@ server.registerTool(
   "render_photo_mockup",
   {
     description:
-      "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_photo_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Family-name spelling of render_2d_surface and render_2d_print_area, which stay available and behave exactly as they did. Use the dashboard for visual fine-tuning.",
+      "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product or the main wall of a room photo, for an all-over print; sized by coverage or by width + height). Read both from get_photo_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Family-name spelling of render_2d_surface and render_2d_print_area, which stay available and behave exactly as they did. Use the dashboard for visual fine-tuning.",
     inputSchema: renderPhotoMockupInput,
   },
   async (args) => renderNamedTarget(args, photoMockupId(args.mockup_id, args.mockup_uuid))
@@ -3006,7 +3007,7 @@ server.registerTool(
   "render_2d_mockup",
   {
     description:
-      "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product, for an all-over print; sized by coverage or by width + height). Read both from get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Second name of render_photo_mockup: the same tool and behavior, with the mockup passed as mockup_uuid. Use the dashboard for visual fine-tuning.",
+      "Render artwork onto a saved photo mockup. Name exactly one target: a print_area_uuid (a bounded zone somebody drew on the product, such as a chest logo; sized by fit or by width + height) or a surface_uuid (a whole printable product or the main wall of a room photo, for an all-over print; sized by coverage or by width + height). Read both from get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Second name of render_photo_mockup: the same tool and behavior, with the mockup passed as mockup_uuid. Use the dashboard for visual fine-tuning.",
     inputSchema: photoRenderInput({
       ...TWO_D_SHARED,
       ...PHOTO_RENDER_TARGET,
