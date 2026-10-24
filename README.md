@@ -119,9 +119,10 @@ reaches a terminal status and hands back `result_url`, `mockup_uuid`,
 jobs, otherwise `null`).
 
 For a photo mockup render, pick the tool that matches the target you read from
-`get_2d_mockup`. Every printable product in the photo is a surface with its own
-`surface_uuid`: `render_2d_surface` prints across the whole of one, and takes
-either a `coverage` percentage or an explicit `width` + `height`. A print area
+`get_2d_mockup`. Every printable product in the photo, and the main wall of a
+room photo, is a surface with its own `surface_uuid`: `render_2d_surface`
+prints across the whole of one, and takes either a `coverage` percentage or an
+explicit `width` + `height`. A print area
 is a bounded zone somebody drew on a product, such as a chest logo:
 `render_2d_print_area` takes its `print_area_uuid`, and either a `fit` or an
 explicit `width` + `height`. A product can have both, and they are separate
