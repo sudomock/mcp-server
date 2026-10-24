@@ -2731,7 +2731,7 @@
     },
     {
       "name": "update_2d_print_areas",
-      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
+      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2766,13 +2766,17 @@
                 "name": {
                   "description": "Optional display name for this print area",
                   "type": "string"
+                },
+                "print_area_id": {
+                  "description": "Id of an existing print area of this mockup to keep its id. Leave it out for a new area.",
+                  "type": "string"
                 }
               },
               "required": [
                 "points"
               ]
             },
-            "description": "Replacement print areas (0-8 four-point quads, each with an optional name)"
+            "description": "Replacement print areas (0-8 four-point quads, each with an optional name and print_area_id)"
           }
         },
         "required": [
@@ -2806,7 +2810,7 @@
     },
     {
       "name": "update_photo_mockup_print_areas",
-      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits. Family-name spelling of update_2d_print_areas: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full product surfaces. Costs 0 credits. Family-name spelling of update_2d_print_areas: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2841,13 +2845,17 @@
                 "name": {
                   "description": "Optional display name for this print area",
                   "type": "string"
+                },
+                "print_area_id": {
+                  "description": "Id of an existing print area of this mockup to keep its id. Leave it out for a new area.",
+                  "type": "string"
                 }
               },
               "required": [
                 "points"
               ]
             },
-            "description": "Replacement print areas (0-8 four-point quads, each with an optional name)"
+            "description": "Replacement print areas (0-8 four-point quads, each with an optional name and print_area_id)"
           }
         },
         "required": [
