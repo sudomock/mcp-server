@@ -1985,7 +1985,7 @@ server.tool(
 
 server.tool(
   "update_2d_print_areas",
-  "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
+  "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the photo mockup to update"),
     print_areas: z
@@ -1996,11 +1996,15 @@ server.tool(
             .length(4)
             .describe("Four [x, y] points in top-left, top-right, bottom-right, bottom-left order"),
           name: z.string().optional().describe("Optional display name for this print area"),
+          print_area_id: z
+            .string()
+            .optional()
+            .describe("Id of an existing print area of this mockup to keep its id. Leave it out for a new area."),
         })
       )
       .min(0)
       .max(8)
-      .describe("Replacement print areas (0-8 four-point quads, each with an optional name)"),
+      .describe("Replacement print areas (0-8 four-point quads, each with an optional name and print_area_id)"),
   },
   async ({ mockup_id, print_areas }) => {
     const result = await apiRequest({
