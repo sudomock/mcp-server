@@ -1010,7 +1010,7 @@
     },
     {
       "name": "render_2d_surface",
-      "description": "Render artwork across a whole product surface: an all-over print. Every printable product in the photo, and the main wall of a room photo, is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+      "description": "Render artwork across a whole surface: an all-over print. Every printable product in the photo, and the main wall of a room photo, is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2731,7 +2731,7 @@
     },
     {
       "name": "update_2d_print_areas",
-      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
+      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full surfaces. Costs 0 credits.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2810,7 +2810,7 @@
     },
     {
       "name": "update_photo_mockup_print_areas",
-      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full product surfaces. Costs 0 credits. Family-name spelling of update_2d_print_areas: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full surfaces. Costs 0 credits. Family-name spelling of update_2d_print_areas: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
