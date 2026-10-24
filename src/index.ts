@@ -1562,7 +1562,7 @@ server.tool(
 // 2D render: one tool per kind of target
 // ---------------------------------------------------------------------------
 
-// A render names one target and nothing else. A product surface takes a
+// A render names one target and nothing else. A surface takes a
 // coverage percentage; a print area takes a fit or an explicit box. Two tools
 // rather than one, because those are two different dials and a single tool
 // could only describe in prose what the shape can state outright: whichever
@@ -1671,7 +1671,7 @@ const TWO_D_REFUSED_OPTIONS: Record<"surface" | "print_area", Record<string, str
     scale: RETIRED_SCALE,
   },
   print_area: {
-    coverage: "A print area is sized by fit, or by an explicit width and height, so coverage has no meaning on one. Send fit or a width and height, or render the product surface instead.",
+    coverage: "A print area is sized by fit, or by an explicit width and height, so coverage has no meaning on one. Send fit or a width and height, or render the surface instead.",
     scale: RETIRED_SCALE,
   },
 };
@@ -1836,7 +1836,7 @@ async function renderTwoD(
 server.registerTool(
   "render_2d_surface",
   {
-    description: "Render artwork across a whole product surface: an all-over print. Every printable product in the photo, and the main wall of a room photo, is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+    description: "Render artwork across a whole surface: an all-over print. Every printable product in the photo, and the main wall of a room photo, is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
     inputSchema: twoDRenderInput("surface", {
       ...TWO_D_SHARED,
       surface_uuid: z.string().describe("UUID of a surface from get_2d_mockup's surfaces[]: a printable product in the photo, or the main wall of a room photo."),
@@ -1986,7 +1986,7 @@ server.tool(
 
 server.tool(
   "update_2d_print_areas",
-  "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full product surfaces. Costs 0 credits.",
+  "Replace a photo mockup's print areas with up to 8 four-point quads and return the updated geometry. An area sent with print_area_id keeps that id; an area without one gets a new id. An empty list is accepted only for verified full surfaces. Costs 0 credits.",
   {
     mockup_id: z.string().describe("UUID of the photo mockup to update"),
     print_areas: z
