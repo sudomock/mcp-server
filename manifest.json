@@ -234,7 +234,7 @@
     },
     {
       "name": "get_2d_mockup",
-      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
+      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo and one for the main wall of a room photo, each with a label. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -251,7 +251,7 @@
     },
     {
       "name": "get_2d_mockup_details",
-      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits. Second name of get_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo and one for the main wall of a room photo, each with a label. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits. Second name of get_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -316,7 +316,7 @@
     },
     {
       "name": "get_photo_mockup",
-      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits. Family-name spelling of get_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo and one for the main wall of a room photo, each with a label. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits. Family-name spelling of get_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -798,7 +798,7 @@
             "type": "string"
           },
           "surface_uuid": {
-            "description": "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used.",
+            "description": "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product or the main wall of a room photo, for an all-over print. Omit when print_area_uuid is used.",
             "type": "string"
           },
           "coverage": {
@@ -1010,7 +1010,7 @@
     },
     {
       "name": "render_2d_surface",
-      "description": "Render artwork across a whole product surface -- an all-over print. Every printable product in the photo is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
+      "description": "Render artwork across a whole product surface -- an all-over print. Every printable product in the photo, and the main wall of a room photo, is a surface with its own surface_uuid, listed by get_2d_mockup. Returns print_files (each with an export_path) and a render_uuid. Costs 5 credits. Use the dashboard for visual fine-tuning.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1867,7 +1867,7 @@
             "type": "string"
           },
           "surface_uuid": {
-            "description": "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product, for an all-over print. Omit when print_area_uuid is used.",
+            "description": "UUID of a product surface from get_photo_mockup's surfaces[]: a whole printable product or the main wall of a room photo, for an all-over print. Omit when print_area_uuid is used.",
             "type": "string"
           },
           "coverage": {
