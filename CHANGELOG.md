@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `tile_spacing` sets the gap between tiles when `tile` is true, as a
+  percentage of the tile size from 0 to 100: the horizontal gap is that percent
+  of the tile width, the vertical gap that percent of the tile height. It goes
+  in a `smart_objects` entry's `asset` on `render_mockup` and
+  `render_psd_mockup`, and it is a parameter of `render_photo_mockup`,
+  `render_2d_mockup`, `render_2d_surface` and `render_2d_print_area`. A value
+  outside 0 to 100 is refused.
+- `render_video` takes `tile` and `tile_spacing` for the smart object it fills,
+  with the same descriptions as the PSD render. `asset_width` and
+  `asset_height` are the size of one tile.
+- `update_2d_print_areas` and `update_photo_mockup_print_areas` take an
+  optional `print_area_id` on each area. An area that carries the id of one of
+  the mockup's print areas keeps that id; an area without one gets a new id.
+
 ## [3.7.0] - 2026-10-24
 
 ### Added

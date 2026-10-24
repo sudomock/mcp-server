@@ -133,6 +133,31 @@ never both, and send `width` and `height` together. `position`, `offset_x`,
 you leave out is left out of the request, so the renderer's own default
 applies rather than a copy of it kept here.
 
+Each entry in a photo mockup's `surfaces` carries a `label`, what was detected
+there, such as `pillow` or `wall`, so you can tell surfaces apart before you
+pick one. `update_2d_print_areas` takes an optional `print_area_id` on each
+area: an area that sends one of the mockup's ids keeps it, and an area without
+one gets a new id.
+
+### Patterns
+
+`tile` repeats the artwork as a pattern across the whole target, and
+`tile_spacing` leaves a gap between the tiles: a percentage of the tile size,
+0 to 100, so the horizontal gap is that percent of the tile width and the
+vertical gap that percent of the tile height. It is used only when `tile` is
+true.
+
+- On a PSD template both go in a `smart_objects` entry's `asset` on
+  `render_mockup`. `size` is one tile, `fit` places the artwork inside each
+  tile, and `position` sets where the grid starts.
+- `render_video` takes them as parameters for the smart object it fills, with
+  `asset_width` and `asset_height` as the size of one tile.
+- The photo mockup render tools take them as parameters. The sizing answer
+  (`coverage`, `fit`, or `width` and `height`) is one tile, and `position` with
+  `offset_x` and `offset_y` sets where the grid starts.
+
+A tile needs a size; without one the API answers 422.
+
 ### Background removal
 
 `remove_background` returns a transparent-PNG URL valid for 7 days. You can
