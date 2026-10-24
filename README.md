@@ -50,12 +50,12 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `list_fonts` | List the fonts available for text layers, including your uploads | 0 |
 | `create_upload_url` | Get an upload URL for a local file and the file URL it will have | 0 |
 | `create_2d_mockup` | Create a photo mockup and detect printable surfaces automatically | 25 |
-| `render_2d_surface` | Print artwork across a whole product surface (all-over) | 5 |
+| `render_2d_surface` | Print artwork across a whole surface (all-over) | 5 |
 | `render_2d_print_area` | Print artwork into one saved print area (a drawn zone) | 5 |
 | `render_video` | Animate a mockup into a video clip (always async) | cost-based (one per account at no charge, then cost-based) |
 | `upload_psd` | Upload a Photoshop PSD/PSB template (sync or async) | 0 |
 | `list_2d_mockups` | List saved photo mockup templates; use `customizable_only` for shopper-ready items | 0 |
-| `get_2d_mockup` | Get one photo mockup's saved print areas and its product surfaces | 0 |
+| `get_2d_mockup` | Get one photo mockup's saved print areas and its surfaces | 0 |
 | `update_2d_print_areas` | Replace a photo mockup's print-area geometry | 0 |
 | `delete_2d_mockup` | Delete a photo mockup template | 0 |
 | `get_job` | Check the status of an async job by job_id | 0 |
