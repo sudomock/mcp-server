@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.8.1] - 2026-10-26
+
+### Changed
+
+- `text_fit` and the `fit` of each text entry cover box text: with `shrink`,
+  box text is scaled down to fit its box's width and height, point text to its
+  width, and `text_font_size`, when sent, is the largest size. Box text always
+  wraps in its box and shows the lines that fit.
+- `vertical_align` takes single-style layers, point and box.
+
 ## [3.8.0] - 2026-10-24
 
 ### Added
