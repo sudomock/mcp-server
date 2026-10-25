@@ -1117,11 +1117,11 @@ const textLayerInputSchema = z
     fit: z
       .enum(["shrink", "clip", "overflow"])
       .default("overflow")
-      .describe("Long-text handling for single-style point text; default overflow"),
+      .describe("Long-text handling for single-style text; default overflow"),
     vertical_align: z
       .enum(["top", "bottom", "center"])
       .optional()
-      .describe("Where text that fit 'shrink' scaled down sits in the original area: 'top' (the default), 'center' or 'bottom'. Single-style point text only."),
+      .describe("Where text that fit 'shrink' scaled down sits in the original area: 'top' (the default), 'center' or 'bottom'. Single-style layers only."),
   })
   .superRefine((layer, ctx) => {
     if ((layer.text === undefined) === (layer.segments === undefined)) {
@@ -1196,7 +1196,7 @@ const SINGLE_LAYER_SHORTCUT = {
   text_fit: z
     .enum(["shrink", "clip", "overflow"])
     .optional()
-    .describe("Long-text handling for single-style point text: 'overflow' keeps the designed size, 'shrink' scales it down to fit, 'clip' cuts it at the last character that fits. Omit for 'overflow'."),
+    .describe("Optional handling for longer single-style text: 'overflow' keeps the designed size, 'shrink' scales it down to fit (point text to its width, box text to its box; text_font_size, when sent, is the largest size), and 'clip' cuts point text at the last character that fits. Box text always wraps in its box and shows the lines that fit. Omit for 'overflow'."),
   text_vertical_align: z
     .enum(["top", "bottom", "center"])
     .optional()
@@ -1257,7 +1257,7 @@ function singleGroupLayer(args: SingleLayerShortcut): Record<string, unknown> | 
 
 server.tool(
   "render_mockup",
-  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Name what to fill with any of these, alone or together: smart_object_uuid + artwork_url for one smart object, smart_objects entries ({uuid, asset or color}) for one or more, text_layers entries ({uuid, text or segments}), or text_layer_uuid + text for one text layer. Sent together they are combined into one render: the smart_object_uuid entry comes before the smart_objects entries, and the text_layer_uuid entry before the text_layers entries. A call that names nothing to render returns an error. To leave layers out of one render, pass their uuids in hidden_layers; get_mockup_details with include_layers lists every layer with its uuid, including the layers inside a smart object's contents. Hiding a group hides every layer inside it, a layer clipped to a hidden layer is hidden with it, as in Photoshop, and a layer hidden inside a smart object's contents is hidden in every copy of that smart object. hidden_layers works on its own. A layer cannot be hidden and edited in the same call, and a smart object that receives artwork cannot have layers inside it hidden. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
+  "Render a PSD mockup with artwork, editable text, or both. Supports one or multiple smart objects and preserves the template's authored appearance. Name what to fill with any of these, alone or together: smart_object_uuid + artwork_url for one smart object, smart_objects entries ({uuid, asset or color}) for one or more, text_layers entries ({uuid, text or segments}), or text_layer_uuid + text for one text layer. Sent together they are combined into one render: the smart_object_uuid entry comes before the smart_objects entries, and the text_layer_uuid entry before the text_layers entries. Use text_fit when longer text should overflow, shrink to fit, or clip. A call that names nothing to render returns an error. To leave layers out of one render, pass their uuids in hidden_layers; get_mockup_details with include_layers lists every layer with its uuid, including the layers inside a smart object's contents. Hiding a group hides every layer inside it, a layer clipped to a hidden layer is hidden with it, as in Photoshop, and a layer hidden inside a smart object's contents is hidden in every copy of that smart object. hidden_layers works on its own. A layer cannot be hidden and edited in the same call, and a smart object that receives artwork cannot have layers inside it hidden. Returns the rendered image URL. Costs 1 credit. Use list_mockups and get_mockup_details to find target UUIDs.",
   {
     mockup_uuid: z.string().describe("UUID of the mockup template (from list_mockups)"),
     smart_object_uuid: z.string().optional().describe("UUID of one smart object layer (from get_mockup_details). Send with artwork_url, or leave both out and use smart_objects or text_layers. With smart_objects, this entry comes first."),
