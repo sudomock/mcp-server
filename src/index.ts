@@ -34,10 +34,11 @@ const CLIENT_ID = `mcp-stdio/${PACKAGE_VERSION}`;
 // User-Agent keeps the SudoMock-MCP/ prefix: the API attributes stdio renders by that
 // prefix (source=stdio_mcp). The version travels in X-SudoMock-Client.
 const USER_AGENT = `SudoMock-MCP/${PACKAGE_VERSION} (stdio)`;
-// Son savunma suzgeci: API'den donen bir metin motor detayi tasiyorsa yutulur.
-// Desen kodlu tutulur cunku bu depo ve npm paketi PUBLIC; terimlerin kendisi
-// (saglayici adlari, boru hatti kavramlari) listelendiginde suzgec sizintiyi
-// onlemek yerine sizintinin kaynagi olur. Davranis kodlamadan ONCEKI ile ayni.
+// Normalizes an error text before it reaches the caller
+// is swallowed. The pattern is kept encoded because this repository and the
+// npm package are PUBLIC; listing the terms themselves would make the filter
+// unsafe. Behaviour is the same as
+// BEFORE the encoding.
 const NON_PUBLIC_TEXT = new RegExp(
   Buffer.from(
     "_PATTERN_",
