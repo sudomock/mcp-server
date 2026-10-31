@@ -246,9 +246,9 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
     // out of the copy is the names behind it, listed below.
 
     const publicToolCopy = JSON.stringify(tools).toLowerCase();
-    // Terimler kodlu: bu depo PUBLIC ve liste, gizlemeye calistigi her ismi
-    // (saglayici adlari, boru hatti kavramlari) tek yerde toplayarak sizintinin
-    // kendisi haline geliyordu. Assert davranisi ayni.
+    // The terms are encoded: this repository is PUBLIC, and a list gathering
+    // in one place every name it tries to hide had become the leak itself.
+    // The assert behaviour is the same.
     const FORBIDDEN = Buffer.from(
       "dmVvLGtsaW5nLHNlZWRhbmNlLGJpcmVmbmV0LGZhbC5haSxpZGVvZ3JhbSxzZXJ2ZXItc2lkZSBkb3dubG9hZCxhdXRvLXJvdXRlcixjZG4gdXJsLG1hc2tfdXVpZCxyZWdpb25faW5kZXgsc2VnbWVudGF0aW9uLGRpc3BsYWNlbWVudCxzaGFkaW5n",
       "base64",

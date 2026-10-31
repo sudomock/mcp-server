@@ -34,10 +34,11 @@ const CLIENT_ID = `mcp-stdio/${PACKAGE_VERSION}`;
 // User-Agent keeps the SudoMock-MCP/ prefix: the API attributes stdio renders by that
 // prefix (source=stdio_mcp). The version travels in X-SudoMock-Client.
 const USER_AGENT = `SudoMock-MCP/${PACKAGE_VERSION} (stdio)`;
-// Son savunma suzgeci: API'den donen bir metin motor detayi tasiyorsa yutulur.
-// Desen kodlu tutulur cunku bu depo ve npm paketi PUBLIC; terimlerin kendisi
-// (saglayici adlari, boru hatti kavramlari) listelendiginde suzgec sizintiyi
-// onlemek yerine sizintinin kaynagi olur. Davranis kodlamadan ONCEKI ile ayni.
+// Last line of defense: a text returned by the API that carries engine detail
+// is swallowed. The pattern is kept encoded because this repository and the
+// npm package are PUBLIC; listing the terms themselves would make the filter
+// the source of the leak instead of preventing it. Behaviour is the same as
+// BEFORE the encoding.
 const ENGINE_DETAIL = new RegExp(
   Buffer.from(
     "Z2VtaW5pfGFkdmFuY2VkLj9tb2RlbHxcYm1vZGVsXGJ8cHJvbXB0fG1hc2soPzpffC18XGIpfHNlZ21lbnQoPzphdGlvbik/KD86X3wtfFxiKXxyZWdpb24uP2luZGV4fGRlcHRofGRpc3BsYWNlbWVudHxncmlkfHdhcnB8c2hhZGluZ3xwcm92aWRlcnxwaXBlbGluZXxlbmdpbmV8aW50ZXJuYWx8cHJpdmF0ZXxzdG9yYWdlfGJ1Y2tldHxjb25maWcuP3ZlcnNpb258c2V0dXAuP3JldmlzaW9ufGVkaXQuP2dlbmVyYXRpb258XGJwaGFzZVxifHN0YXRlLj9tYWNoaW5lfCg/OmludGVybmFsfHByb2Nlc3Npbmd8d29ya2Zsb3cpLj9zdGF0ZQ==",

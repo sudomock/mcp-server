@@ -21,25 +21,26 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Publish to npm (skip if this version is already there)
-        # Iki yayin hedefi (npm + MCP Registry) tek iste kosuyor ve daha once
-        # idempotent degildi: npm basarili olup registry duserse, yeniden kosmak
-        # IMKANSIZ hale geliyordu -- npm "cannot publish over" diyip akisi
-        # registry adimina hic vardirmiyordu. 4 Agustos ve 21 Agustos kosulari
-        # tam olarak boyle sessizce yarim kaldi. Surum zaten yayindaysa atla,
-        # boylece diger yarim tamamlanabilsin.
+        # The two publish targets (npm + MCP Registry) run in one job and were
+        # not idempotent before: when npm succeeded and the registry failed, a
+        # re-run was IMPOSSIBLE, because npm said "cannot publish over" and the
+        # flow never reached the registry step. The August 4 and August 21 runs
+        # were left half done silently in exactly this way. Skip when the
+        # version is already published, so the other half can complete.
         run: |
           V=$(node -p "require('./package.json').version")
           N=$(node -p "require('./package.json').name")
           if npm view "$N@$V" version >/dev/null 2>&1; then
-            echo "npm: $N@$V zaten yayinda, atlaniyor"
+            echo "npm: $N@$V is already published, skipping"
           else
             npm publish --provenance --access public --tag latest
           fi
       - name: Sync server.json version from package.json
-        # server.json'un kendi `version` alani ikinci bir kopyaydi: 2.5.0
-        # sevkinde kimse yukseltmedi, MCP registry "cannot publish duplicate
-        # version" ile reddetti ve kayit 2.4.0'da kaldi -- npm yayinlanirken
-        # registry sessizce geride kaliyordu. Surum artik TEK yerden turetiliyor.
+        # server.json's own `version` field was a second copy: nobody bumped it
+        # in the 2.5.0 release, the MCP registry refused with "cannot publish
+        # duplicate version" and the entry stayed at 2.4.0, so while npm
+        # published, the registry fell behind silently. The version is now
+        # derived from ONE place.
         run: |
           node -e "
             const fs = require('fs');
@@ -55,40 +56,41 @@ jobs:
       - name: Install mcp-publisher
         run: curl -sSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
       - name: Wait for npm to serve the version the registry will look for
-        # Registry, kaydi kabul etmeden once npm'e sorup surumu goruyor mu diye
-        # bakiyor. npm yayindan sonra "may take a few minutes to become
-        # available" diyor, yani hemen sormak 404 getiriyor ve kayit 400 ile
-        # reddediliyor: 2.10.0 kosusu tam olarak boyle dustu. Once npm'in
-        # gercekten servis ettigini gor, sonra kaydet.
+        # Before accepting an entry, the registry asks npm whether it can see
+        # the version. Right after a publish npm says "may take a few minutes
+        # to become available", so asking at once returns 404 and the registry
+        # refuses with 400: the 2.10.0 run failed exactly this way. First see
+        # npm actually serve the version, then register it.
         run: |
           V=$(node -p "require('./package.json').version")
           N=$(node -p "require('./package.json').name")
           for i in $(seq 1 30); do
             if npm view "$N@$V" version >/dev/null 2>&1; then
-              echo "npm: $N@$V servis ediliyor ($((i*10))s)"
+              echo "npm: $N@$V is being served ($((i*10))s)"
               exit 0
             fi
             sleep 10
           done
-          echo "npm: $N@$V 5 dakikada gorunmedi, kayit adimi yine de denenecek"
+          echo "npm: $N@$V did not appear within 5 minutes; the registry step will still be attempted"
       - name: Publish to MCP Registry
         run: |
           ./mcp-publisher login github-oidc
-          # Cikis kodu yayindan okunur, `tee`'den DEGIL: bir boru hattinin kodu
-          # son komuta aittir ve `tee` her zaman basarili olur, yani eski hali
-          # yayin dusse de "yayinlandi" yazip isi yesil birakiyordu. 2.10.0
-          # kosusu 400 aldigi halde tam olarak boyle basarili gorundu.
-          # Surum registry'de zaten varsa bu bir hata degil, tamamlanmis bir
-          # istir: "duplicate version" cikisi basari sayilir.
+          # The exit code is read from the publish, NOT from `tee`: a pipeline's
+          # code belongs to its last command and `tee` always succeeds, so the
+          # old version printed "published" and left the job green even when
+          # the publish failed. The 2.10.0 run looked successful in exactly this
+          # way despite getting 400. A version already in the registry is not
+          # an error but finished work: a "duplicate version" result counts as
+          # success.
           set +e
           ./mcp-publisher publish >/tmp/mcp-publish.log 2>&1
           code=$?
           set -e
           cat /tmp/mcp-publish.log
           if [ "$code" -eq 0 ]; then
-            echo "MCP Registry: yayinlandi"
+            echo "MCP Registry: published"
           elif grep -q "duplicate version" /tmp/mcp-publish.log; then
-            echo "MCP Registry: bu surum zaten kayitli, atlaniyor"
+            echo "MCP Registry: this version is already registered, skipping"
           else
             exit "$code"
           fi
