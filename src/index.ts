@@ -997,7 +997,7 @@ server.tool(
 // on a photo mockup print area and on a video's still frame alike: 'fill',
 // 'fit' and 'crop', and 'contain' and 'cover', the older names for 'fit' and
 // 'crop', which it still accepts. A name is sent as given. On a smart object
-// the default is 'fit', the API's own (founder decision 2026-10-05), and the
+// the default is 'fit', the API's own (since 2026-10-05), and the
 // package sends it when fit is left out; on a print area nothing is sent and
 // the API's own default applies.
 const FIT_MODES = ["fill", "fit", "crop", "contain", "cover"] as const;
