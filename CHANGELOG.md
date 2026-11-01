@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.8.3] - 2026-11-01
+
+### Changed
+
+- A code comment in the published package no longer names an internal
+  decision. No behaviour change.
+
 ## [3.8.2] - 2026-11-01
 
 ### Changed
