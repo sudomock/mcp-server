@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.8.2] - 2026-11-01
+
+### Changed
+
+- Code comments in the published package read in English. No behaviour
+  change.
+
 ## [3.8.1] - 2026-10-26
 
 ### Changed
