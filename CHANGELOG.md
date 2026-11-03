@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.8.4] - 2026-11-03
+
+### Changed
+
+- Background removal is described at 5 credits per image, on the
+  `remove_background` tool and on the `remove_background` flag of the render
+  tools (5 credits per artwork).
+
 ## [3.8.3] - 2026-11-01
 
 ### Changed
