@@ -46,7 +46,7 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `list_mockups` | List your uploaded mockup templates | 0 |
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes; with `include_layers`, every layer and its UUID, including the layers inside smart objects | 0 |
 | `render_mockup` | Render a mockup with artwork and/or editable text; `hidden_layers` leaves chosen layers out | 1 |
-| `remove_background` | Get a transparent-PNG cutout at a public URL that stays available for 7 days | 25 |
+| `remove_background` | Get a transparent-PNG cutout at a public URL that stays available for 7 days | 5 |
 | `list_fonts` | List the fonts available for text layers, including your uploads | 0 |
 | `create_upload_url` | Get an upload URL for a local file and the file URL it will have | 0 |
 | `create_2d_mockup` | Create a photo mockup and detect printable surfaces automatically | 25 |
@@ -165,7 +165,7 @@ A tile needs a size; without one the API answers 422.
 pass that URL straight back as `artwork_url` during that window. To clean
 artwork inline during a single render instead, pass
 `remove_background: true` to `render_mockup` or either photo mockup render tool. Either way it
-costs 25 credits per artwork, refunded automatically if processing fails.
+costs 5 credits per artwork, refunded automatically if processing fails.
 
 ### Webhooks
 

@@ -1042,7 +1042,7 @@ const smartObjectInputSchema = z
         remove_background: z
           .boolean()
           .optional()
-          .describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
+          .describe("Remove the artwork's background before placing it. Adds 5 credits per artwork."),
         tile: z
           .boolean()
           .optional()
@@ -1295,7 +1295,7 @@ server.tool(
     rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
     flip_horizontal: z.boolean().default(false).describe("Mirror artwork left-right"),
     flip_vertical: z.boolean().default(false).describe("Mirror artwork top-bottom"),
-    remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
+    remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 5 credits per artwork."),
     color_hex: z.string().optional().describe("Optional color overlay hex code (e.g. '#FF5733')"),
     color_blend_mode: z.string().optional().describe("Blend mode for color overlay (e.g. 'multiply', 'screen', 'overlay')"),
     brightness: z.number().min(-150).max(150).default(0).describe("Brightness adjustment"),
@@ -1438,7 +1438,7 @@ server.tool(
 
 server.tool(
   "remove_background",
-  "Remove the background from any image and return a transparent-PNG cutout with clean, production-ready edges. The returned URL is valid for 7 days and can be used as artwork_url during that window. Costs 25 credits per image; credits are refunded automatically if processing fails.",
+  "Remove the background from any image and return a transparent-PNG cutout with clean, production-ready edges. The returned URL is valid for 7 days and can be used as artwork_url during that window. Costs 5 credits per image; credits are refunded automatically if processing fails.",
   {
     image_url: z.string().url().describe("Public URL of the image (PNG/JPG/WebP) to process"),
   },
@@ -1571,7 +1571,7 @@ server.tool(
 const TWO_D_SHARED = {
   mockup_uuid: z.string().describe("UUID of the photo mockup template (from list_2d_mockups, returned as mockup_id)."),
   artwork_url: z.string().describe("Public URL of the artwork image (PNG/JPG/WebP) to place on the mockup"),
-  remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 25 credits per artwork."),
+  remove_background: z.boolean().default(false).describe("Remove the artwork's background before placing it. Adds 5 credits per artwork."),
   tile: z
     .boolean()
     .optional()
