@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `check_seams` checks whether a repeating pattern tile joins without a
+  visible seam. It answers at once with `status` (`seamless`, `faint_seam` or
+  `visible_seam`), the sides that do not join cleanly (`left_right`,
+  `top_bottom`) with their pixel ranges, `width` and `height`, `fixable` with
+  `unfixable_reason`, and `previous_fix`, your latest fix of the same image.
+  `crop_aspect` checks the image cropped to the tile shape the way
+  `fit: "crop"` crops it. Free.
+- `fix_seams` repairs a pattern tile so it repeats without a visible seam. It
+  takes the same input as `check_seams` and is always async: it returns a
+  `job_id` to read with `get_job` or `wait_for_job`. Costs 60 credits,
+  refunded automatically if the fix fails.
+- `get_job`, `wait_for_job` and `list_jobs` return `alternative_url`,
+  `result_status`, `changes` and `stage`, which a seam fix job fills.
+- `list_jobs` filters by the `seam_fix` kind.
+- The webhook tools take the `seam_fix.succeeded` and `seam_fix.failed`
+  events.
+
+### Changed
+
+- Every `tile` parameter description ends with "Check the tile with
+  check_seams first."
+
 ## [3.8.4] - 2026-11-03
 
 ### Changed
