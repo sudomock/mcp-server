@@ -47,6 +47,8 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes; with `include_layers`, every layer and its UUID, including the layers inside smart objects | 0 |
 | `render_mockup` | Render a mockup with artwork and/or editable text; `hidden_layers` leaves chosen layers out | 1 |
 | `remove_background` | Get a transparent-PNG cutout at a public URL that stays available for 7 days | 5 |
+| `check_seams` | Check whether a repeating pattern tile joins without a visible seam | 0 |
+| `fix_seams` | Repair a pattern tile's seams so it repeats cleanly (always async) | 60 |
 | `list_fonts` | List the fonts available for text layers, including your uploads | 0 |
 | `create_upload_url` | Get an upload URL for a local file and the file URL it will have | 0 |
 | `create_2d_mockup` | Create a photo mockup and detect printable surfaces automatically | 25 |
@@ -110,7 +112,7 @@ mockup passed as `mockup_uuid`.
 ### Async jobs
 
 `render_mockup`, `upload_psd`, `create_2d_mockup`, and both photo mockup render tools
-accept `is_async: true`, and `render_video` is always async. These return a
+accept `is_async: true`, and `render_video` and `fix_seams` are always async. These return a
 `job_id` immediately (HTTP 202) instead of a final result. (`create_2d_mockup`
 and the photo mockup render tools are synchronous by default and return the mockup /
 render directly.) Poll it with `get_job`, or let `wait_for_job` block until the job
@@ -159,6 +161,24 @@ true.
 
 A tile needs a size; without one the API answers 422.
 
+Check the tile with `check_seams` before you render it. It answers at once, at
+no charge, with `status`: `seamless`, `faint_seam` or `visible_seam`. `seams`
+lists each side that does not join cleanly, `left_right` (where the right edge
+meets the left) or `top_bottom` (where the bottom edge meets the top), with the
+pixel ranges along it. `fixable` and `unfixable_reason` (`transparent_edges` or
+`too_large`) say whether the tile can be repaired, and `previous_fix` holds your
+latest fix of the same image, if there is one. Pass `crop_aspect`, the width
+divided by the height of one tile in your render, to check the image cropped to
+that shape the way `fit: "crop"` crops it.
+
+`fix_seams` takes the same input and repairs the tile so it repeats without a
+visible seam. It is always async: read the job with `get_job` or
+`wait_for_job`. The finished job carries `result_url`, `alternative_url` (a
+second repaired version when one is available, otherwise `null`),
+`result_status` (the seam check of the result) and `changes` (`edges` or
+`whole_tile`); while it runs, `stage` reads `queued`, `fixing` or `finishing`.
+Seam fix: 60 credits, refunded automatically if the fix fails; seam check: free.
+
 ### Background removal
 
 `remove_background` returns a transparent-PNG URL valid for 7 days. You can
@@ -184,7 +204,8 @@ when applicable, and optional `export_format` / `duration_ms`. Event types:
 `render.succeeded`, `render.failed`, `upload.succeeded`, `video.succeeded`,
 `video.failed`, `photo_mockup.ready`, `photo_mockup.rejected`,
 `photo_mockup.failed`, `photo_mockup_render.succeeded`,
-`photo_mockup_render.failed`, `webhook.test`.
+`photo_mockup_render.failed`, `seam_fix.succeeded`, `seam_fix.failed`,
+`webhook.test`. Seam fix deliveries carry `result_url` and `alternative_url`.
 
 The five photo mockup events also have a legacy spelling: `2d_mockup.ready`,
 `2d_mockup.rejected`, `2d_mockup.failed`, `2d_render.succeeded`,
@@ -245,6 +266,7 @@ as `0 / 0`.
 - "List my photo mockups, then render the first one with this artwork: https://example.com/logo.png"
 - "Render this design asynchronously and wait for it to finish"
 - "Queue that photo mockup render async and give me the job id to track"
+- "Check this pattern tile for seams, fix it if needed, then render it on the leggings mockup"
 - "Animate the hoodie mockup into a 5-second video clip"
 - "Upload this PSD as a new template: https://example.com/mockup.psd"
 - "Set up a webhook at https://example.com/hooks so I get notified when renders finish"
