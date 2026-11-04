@@ -851,6 +851,7 @@ test("seam tools: the check is sync and projected, the fix is an async job read 
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.SUDOMOCK_API_KEY;
   const requests: Array<{ path: string; body: unknown }> = [];
+  const fixKeys: string[] = [];
 
   globalThis.fetch = async (input, init) => {
     const path = new URL(String(input)).pathname;
@@ -871,6 +872,7 @@ test("seam tools: the check is sync and projected, the fix is an async job read 
       });
     }
     if (path === "/api/v1/fix-seams") {
+      fixKeys.push(new Headers(init?.headers).get("Idempotency-Key") ?? "");
       return Response.json({ job_id: "job-seam", kind: "seam_fix", status: "queued" }, { status: 202 });
     }
     return Response.json({
@@ -939,6 +941,14 @@ test("seam tools: the check is sync and projected, the fix is an async job read 
         ["/api/v1/jobs/job-seam", undefined],
       ]
     );
+
+    // A paid submit always carries a key; the caller's own one makes a retry safe.
+    await client.callTool({
+      name: "fix_seams",
+      arguments: { image_url: "https://example.com/tile.png", idempotency_key: "tile-42" },
+    });
+    assert.match(fixKeys[0], /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    assert.equal(fixKeys[1], "tile-42");
 
     // Every tile parameter, on every tool, points at the check.
     const { tools } = await client.listTools();

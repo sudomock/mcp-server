@@ -14,7 +14,8 @@
 - `fix_seams` repairs a pattern tile so it repeats without a visible seam. It
   takes the same input as `check_seams` and is always async: it returns a
   `job_id` to read with `get_job` or `wait_for_job`. Costs 60 credits,
-  refunded automatically if the fix fails.
+  refunded automatically if the fix fails. Pass `idempotency_key` so that a
+  retry with the same key returns the same job instead of starting a new fix.
 - `get_job`, `wait_for_job` and `list_jobs` return `alternative_url`,
   `result_status`, `changes` and `stage`, which a seam fix job fills.
 - `list_jobs` filters by the `seam_fix` kind.
