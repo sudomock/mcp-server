@@ -1546,12 +1546,24 @@ server.tool(
   "Repair a repeating pattern tile so it repeats without a visible seam. Check the tile with check_seams first: a seamless tile needs no fix, and its previous_fix may already hold one. Always async: returns a job_id at once; read the result with get_job or wait_for_job. The finished job carries result_url, alternative_url (a second repaired version when one is available, otherwise null), result_status (the seam check of the result: seamless, faint_seam or visible_seam) and changes (edges when only the edges changed, whole_tile when the whole tile did). A tile with transparent edges, or one too large to fix, is refused without charge. Costs 60 credits; credits are refunded automatically if the fix fails.",
   seamInput("fixed"),
   async ({ image_url, crop_aspect }) => {
-    const result = await apiRequest({
-      method: "POST",
-      path: "/api/v1/fix-seams",
-      body: seamBody(image_url, crop_aspect),
-      timeout: RENDER_TIMEOUT,
-    });
+    let result;
+    try {
+      result = await apiRequest({
+        method: "POST",
+        path: "/api/v1/fix-seams",
+        body: seamBody(image_url, crop_aspect),
+        timeout: RENDER_TIMEOUT,
+      });
+    } catch (err) {
+      // A 422 here is a tile that cannot be fixed, not a bad argument.
+      if (err instanceof ApiRequestError && err.kind === "http_422") {
+        throw new ApiRequestError(
+          "This tile cannot be fixed; call check_seams to see unfixable_reason (transparent_edges or too_large).",
+          err.kind
+        );
+      }
+      throw err;
+    }
     return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
   }
 );
