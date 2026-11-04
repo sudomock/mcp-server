@@ -192,7 +192,8 @@ async function apiRequest({ method, path, params, body, headers: extraHeaders, t
  * A queued (202 Accepted) async submission carries a job_id + status_url.
  * Surface that contract plainly so an agent knows to poll instead of hunting
  * for a result_url that does not exist yet. Every async submit endpoint
- * (/renders, /psd/upload, /renders/video) returns `job_id` in its 202 body.
+ * (/renders, /psd/upload, /renders/video, /fix-seams) returns `job_id` in its
+ * 202 body.
  */
 export function formatJobAccepted(result: unknown): string {
   const r = (result ?? {}) as Record<string, unknown>;
@@ -287,6 +288,12 @@ function publicJob(result: unknown): Record<string, unknown> {
     audio: job.audio ?? null,
     mockup_name: job.mockup_name ?? null,
     poster_url: job.poster_url ?? null,
+    // Seam fix jobs: the second repaired tile, the seam check of the result,
+    // how much of the tile changed, and how far along the job is.
+    alternative_url: job.alternative_url ?? null,
+    result_status: job.result_status ?? null,
+    changes: job.changes ?? null,
+    stage: job.stage ?? null,
   };
 }
 
@@ -528,6 +535,39 @@ function publicBackgroundRemoval(result: unknown): Record<string, unknown> {
       width: data.width ?? null,
       height: data.height ?? null,
       credits_charged: data.credits_charged ?? null,
+    },
+  };
+}
+
+function publicSeamCheck(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const data = asRecord(envelope.data ?? result);
+  const previousFix = asRecord(data.previous_fix);
+  return {
+    success: envelope.success !== false,
+    data: {
+      status: data.status ?? null,
+      seams: Array.isArray(data.seams)
+        ? data.seams.map((rawSeam) => {
+            const seam = asRecord(rawSeam);
+            return {
+              side: seam.side ?? null,
+              status: seam.status ?? null,
+              ranges: Array.isArray(seam.ranges) ? seam.ranges : [],
+            };
+          })
+        : [],
+      width: data.width ?? null,
+      height: data.height ?? null,
+      fixable: data.fixable === true,
+      unfixable_reason: data.unfixable_reason ?? null,
+      previous_fix: data.previous_fix
+        ? {
+            job_id: previousFix.job_id ?? null,
+            result_url: previousFix.result_url ?? null,
+            alternative_url: previousFix.alternative_url ?? null,
+          }
+        : null,
     },
   };
 }
@@ -1046,7 +1086,7 @@ const smartObjectInputSchema = z
         tile: z
           .boolean()
           .optional()
-          .describe("Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size."),
+          .describe("Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size. Check the tile with check_seams first."),
         tile_spacing: z
           .number()
           .min(0)
@@ -1459,6 +1499,64 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
+// Tools: check_seams, fix_seams
+// ---------------------------------------------------------------------------
+
+// The same image, cropped the same way, is what a fix repairs after a check
+// looked at it, so both tools take one input.
+function seamInput(action: "checked" | "fixed") {
+  return {
+    image_url: z.string().url().describe("Public URL of the pattern tile image (PNG/JPG/WebP)"),
+    crop_aspect: z
+      .number()
+      .positive()
+      .optional()
+      .describe(
+        `Width divided by height of one tile in the render that will use this image, e.g. 1 for square tiles. The image is cropped to that shape the same way fit 'crop' crops it, then ${action}. Omit to use the image as it is.`
+      ),
+  };
+}
+
+function seamBody(image_url: string, crop_aspect: number | undefined): Record<string, unknown> {
+  return crop_aspect === undefined ? { url: image_url } : { url: image_url, crop_aspect };
+}
+
+server.tool(
+  "check_seams",
+  "Check whether a repeating pattern tile joins without a visible seam, before you render it with tile. Returns status: seamless, faint_seam or visible_seam. seams lists each side that does not join cleanly (left_right where the right edge meets the left, top_bottom where the bottom edge meets the top) with the pixel ranges along it. When status is visible_seam and fixable is true, suggest fix_seams; when fixable is false, unfixable_reason says why (transparent_edges or too_large). previous_fix holds your latest fix of the same image, if there is one, so it can be reused instead of fixed again. Synchronous. Costs 0 credits.",
+  seamInput("checked"),
+  async ({ image_url, crop_aspect }) => {
+    const result = await apiRequest({
+      method: "POST",
+      path: "/api/v1/check-seams",
+      body: seamBody(image_url, crop_aspect),
+      timeout: RENDER_TIMEOUT,
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicSeamCheck(result), null, 2),
+      }],
+    };
+  }
+);
+
+server.tool(
+  "fix_seams",
+  "Repair a repeating pattern tile so it repeats without a visible seam. Check the tile with check_seams first: a seamless tile needs no fix, and its previous_fix may already hold one. Always async: returns a job_id at once; read the result with get_job or wait_for_job. The finished job carries result_url, alternative_url (a second repaired version when one is available, otherwise null), result_status (the seam check of the result: seamless, faint_seam or visible_seam) and changes (edges when only the edges changed, whole_tile when the whole tile did). A tile with transparent edges, or one too large to fix, is refused without charge. Costs 60 credits; credits are refunded automatically if the fix fails.",
+  seamInput("fixed"),
+  async ({ image_url, crop_aspect }) => {
+    const result = await apiRequest({
+      method: "POST",
+      path: "/api/v1/fix-seams",
+      body: seamBody(image_url, crop_aspect),
+      timeout: RENDER_TIMEOUT,
+    });
+    return { content: [{ type: "text" as const, text: formatJobAccepted(result) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Tool: list_fonts
 // ---------------------------------------------------------------------------
 
@@ -1575,7 +1673,7 @@ const TWO_D_SHARED = {
   tile: z
     .boolean()
     .optional()
-    .describe("Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer."),
+    .describe("Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer. Check the tile with check_seams first."),
   tile_spacing: z
     .number()
     .min(0)
@@ -2105,7 +2203,7 @@ server.tool(
 
 server.tool(
   "get_job",
-  "Get the current status of any async render, video, upload, or photo mockup job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
+  "Get the current status of any async render, video, upload, photo mockup, or seam fix job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. A seam fix job also reports stage (queued, fixing, finishing) while it runs. To block until done, use wait_for_job instead.",
   {
     job_id: z.string().describe("The job_id returned by any async submission"),
   },
@@ -2121,10 +2219,10 @@ server.tool(
 
 server.tool(
   "list_jobs",
-  "List your async jobs, including PSD renders, videos, uploads, and photo mockup creation and renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
+  "List your async jobs, including PSD renders, videos, uploads, photo mockup creation and renders, and seam fixes, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
   {
     kind: z
-      .enum(["video", "render", "upload", "2d_create", "2d_render", "photo_mockup_create", "photo_mockup_render"])
+      .enum(["video", "render", "upload", "2d_create", "2d_render", "photo_mockup_create", "photo_mockup_render", "seam_fix"])
       .optional()
       .describe("Filter by job kind. A photo mockup job has two spellings of its kind (photo_mockup_create / photo_mockup_render, or the legacy 2d_create / 2d_render); either spelling selects both. Omit for all kinds."),
     mockup_uuid: z.string().optional().describe("Filter by source mockup UUID (e.g. one mockup's videos). Raw-image videos are never returned by this filter."),
@@ -2151,7 +2249,7 @@ server.tool(
 
 server.tool(
   "wait_for_job",
-  "Poll any async render, video, upload, or photo mockup job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
+  "Poll any async render, video, upload, photo mockup, or seam fix job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
   {
     job_id: z.string().describe("The job_id to wait on (from an async submission or render_video)"),
     poll_interval_seconds: z
@@ -2214,7 +2312,7 @@ server.tool(
     tile: z
       .boolean()
       .optional()
-      .describe("RENDER MODE: Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size."),
+      .describe("RENDER MODE: Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size. Check the tile with check_seams first."),
     tile_spacing: z
       .number()
       .min(0)
@@ -2344,7 +2442,8 @@ server.tool(
 // Event types: render.succeeded, render.failed, upload.succeeded,
 // video.succeeded, video.failed, photo_mockup.ready, photo_mockup.rejected,
 // photo_mockup.failed, photo_mockup_render.succeeded,
-// photo_mockup_render.failed, webhook.test.
+// photo_mockup_render.failed, seam_fix.succeeded, seam_fix.failed,
+// webhook.test. A seam fix delivery carries result_url and alternative_url.
 //
 // The five photo mockup events also have a legacy spelling (2d_mockup.ready,
 // 2d_mockup.rejected, 2d_mockup.failed, 2d_render.succeeded,
@@ -2374,6 +2473,8 @@ const WEBHOOK_EVENT_TYPES = [
   "photo_mockup.failed",
   "photo_mockup_render.succeeded",
   "photo_mockup_render.failed",
+  "seam_fix.succeeded",
+  "seam_fix.failed",
   "webhook.test",
 ] as const;
 
@@ -2387,7 +2488,7 @@ server.tool(
     event_types: z
       .array(z.enum(WEBHOOK_EVENT_TYPES))
       .default([])
-      .describe("Event types to subscribe to. Supports render, upload, video, photo mockup create (photo_mockup.*), photo mockup render (photo_mockup_render.*), and webhook.test events; the legacy 2d_mockup.* / 2d_render.* spellings of the photo mockup events are accepted too. Pass an empty array (the default) to subscribe to ALL events."),
+      .describe("Event types to subscribe to. Supports render, upload, video, photo mockup create (photo_mockup.*), photo mockup render (photo_mockup_render.*), seam fix (seam_fix.*), and webhook.test events; the legacy 2d_mockup.* / 2d_render.* spellings of the photo mockup events are accepted too. Pass an empty array (the default) to subscribe to ALL events."),
     event_naming: z
       .enum(WEBHOOK_EVENT_NAMINGS)
       .optional()
