@@ -272,6 +272,12 @@
             "description": "Width divided by height of one tile in the render that will use this image, e.g. 1 for square tiles. The image is cropped to that shape the same way fit 'crop' crops it, then fixed. Omit to use the image as it is.",
             "type": "number",
             "exclusiveMinimum": 0
+          },
+          "idempotency_key": {
+            "description": "Optional retry-stable key for this fix request",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
           }
         },
         "required": [
