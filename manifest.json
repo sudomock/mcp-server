@@ -2,6 +2,29 @@
   "generator": "scripts/export-manifest.ts",
   "tools": [
     {
+      "name": "check_seams",
+      "description": "Check whether a repeating pattern tile joins without a visible seam, before you render it with tile. Returns status: seamless, faint_seam or visible_seam. seams lists each side that does not join cleanly (left_right where the right edge meets the left, top_bottom where the bottom edge meets the top) with the pixel ranges along it. When status is visible_seam and fixable is true, suggest fix_seams; when fixable is false, unfixable_reason says why (transparent_edges or too_large). previous_fix holds your latest fix of the same image, if there is one, so it can be reused instead of fixed again. Synchronous. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Public URL of the pattern tile image (PNG/JPG/WebP)"
+          },
+          "crop_aspect": {
+            "description": "Width divided by height of one tile in the render that will use this image, e.g. 1 for square tiles. The image is cropped to that shape the same way fit 'crop' crops it, then checked. Omit to use the image as it is.",
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "image_url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "create_2d_mockup",
       "description": "Create a reusable photo mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning.",
       "inputSchema": {
@@ -103,7 +126,7 @@
           },
           "event_types": {
             "default": [],
-            "description": "Event types to subscribe to. Supports render, upload, video, photo mockup create (photo_mockup.*), photo mockup render (photo_mockup_render.*), and webhook.test events; the legacy 2d_mockup.* / 2d_render.* spellings of the photo mockup events are accepted too. Pass an empty array (the default) to subscribe to ALL events.",
+            "description": "Event types to subscribe to. Supports render, upload, video, photo mockup create (photo_mockup.*), photo mockup render (photo_mockup_render.*), seam fix (seam_fix.*), and webhook.test events; the legacy 2d_mockup.* / 2d_render.* spellings of the photo mockup events are accepted too. Pass an empty array (the default) to subscribe to ALL events.",
             "type": "array",
             "items": {
               "type": "string",
@@ -123,6 +146,8 @@
                 "photo_mockup.failed",
                 "photo_mockup_render.succeeded",
                 "photo_mockup_render.failed",
+                "seam_fix.succeeded",
+                "seam_fix.failed",
                 "webhook.test"
               ]
             }
@@ -233,6 +258,29 @@
       }
     },
     {
+      "name": "fix_seams",
+      "description": "Repair a repeating pattern tile so it repeats without a visible seam. Check the tile with check_seams first: a seamless tile needs no fix, and its previous_fix may already hold one. Always async: returns a job_id at once; read the result with get_job or wait_for_job. The finished job carries result_url, alternative_url (a second repaired version when one is available, otherwise null), result_status (the seam check of the result: seamless, faint_seam or visible_seam) and changes (edges when only the edges changed, whole_tile when the whole tile did). A tile with transparent edges, or one too large to fix, is refused without charge. Costs 60 credits; credits are refunded automatically if the fix fails.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "image_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Public URL of the pattern tile image (PNG/JPG/WebP)"
+          },
+          "crop_aspect": {
+            "description": "Width divided by height of one tile in the render that will use this image, e.g. 1 for square tiles. The image is cropped to that shape the same way fit 'crop' crops it, then fixed. Omit to use the image as it is.",
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        },
+        "required": [
+          "image_url"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "get_2d_mockup",
       "description": "Get one photo mockup's full details: the saved print_areas[] somebody drew on it, and the surfaces[], one entry per printable product in the photo and one for the main wall of a room photo, each with a label. Pass a print_area_id to render_2d_print_area, or a surfaces[].surface_uuid to render_2d_surface. Costs 0 credits.",
       "inputSchema": {
@@ -277,7 +325,7 @@
     },
     {
       "name": "get_job",
-      "description": "Get the current status of any async render, video, upload, or photo mockup job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. To block until done, use wait_for_job instead.",
+      "description": "Get the current status of any async render, video, upload, photo mockup, or seam fix job by its job_id. Returns status (queued|running|succeeded|failed), completed-result details and credits charged, or an error if failed. A seam fix job also reports stage (queued, fixing, finishing) while it runs. To block until done, use wait_for_job instead.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -425,7 +473,7 @@
     },
     {
       "name": "list_jobs",
-      "description": "List your async jobs, including PSD renders, videos, uploads, and photo mockup creation and renders, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
+      "description": "List your async jobs, including PSD renders, videos, uploads, photo mockup creation and renders, and seam fixes, newest first. Use this when you do not already hold a job_id. Pass the returned next_cursor to fetch the next page.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -439,7 +487,8 @@
               "2d_create",
               "2d_render",
               "photo_mockup_create",
-              "photo_mockup_render"
+              "photo_mockup_render",
+              "seam_fix"
             ]
           },
           "mockup_uuid": {
@@ -630,6 +679,8 @@
               "photo_mockup.failed",
               "photo_mockup_render.succeeded",
               "photo_mockup_render.failed",
+              "seam_fix.succeeded",
+              "seam_fix.failed",
               "webhook.test"
             ]
           },
@@ -694,7 +745,7 @@
             "type": "boolean"
           },
           "tile": {
-            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
+            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer. Check the tile with check_seams first.",
             "type": "boolean"
           },
           "tile_spacing": {
@@ -872,7 +923,7 @@
             "type": "boolean"
           },
           "tile": {
-            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
+            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer. Check the tile with check_seams first.",
             "type": "boolean"
           },
           "tile_spacing": {
@@ -1028,7 +1079,7 @@
             "type": "boolean"
           },
           "tile": {
-            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
+            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer. Check the tile with check_seams first.",
             "type": "boolean"
           },
           "tile_spacing": {
@@ -1274,7 +1325,7 @@
                       "type": "boolean"
                     },
                     "tile": {
-                      "description": "Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size.",
+                      "description": "Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size. Check the tile with check_seams first.",
                       "type": "boolean"
                     },
                     "tile_spacing": {
@@ -1763,7 +1814,7 @@
             "type": "boolean"
           },
           "tile": {
-            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer.",
+            "description": "Repeat the artwork as a pattern across the whole target. The sizing answer (coverage, fit, or width and height) is one tile, and position with offset_x and offset_y sets where the grid starts. Requires a sizing answer. Check the tile with check_seams first.",
             "type": "boolean"
           },
           "tile_spacing": {
@@ -2035,7 +2086,7 @@
                       "type": "boolean"
                     },
                     "tile": {
-                      "description": "Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size.",
+                      "description": "Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size. Check the tile with check_seams first.",
                       "type": "boolean"
                     },
                     "tile_spacing": {
@@ -2573,7 +2624,7 @@
             "maximum": 9007199254740991
           },
           "tile": {
-            "description": "RENDER MODE: Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size.",
+            "description": "RENDER MODE: Repeat the artwork as a pattern across the whole smart object. size is one tile, fit places the artwork inside each tile, and position sets where the grid starts. Requires size. Check the tile with check_seams first.",
             "type": "boolean"
           },
           "tile_spacing": {
@@ -2927,6 +2978,8 @@
                 "photo_mockup.failed",
                 "photo_mockup_render.succeeded",
                 "photo_mockup_render.failed",
+                "seam_fix.succeeded",
+                "seam_fix.failed",
                 "webhook.test"
               ]
             }
@@ -3004,7 +3057,7 @@
     },
     {
       "name": "wait_for_job",
-      "description": "Poll any async render, video, upload, or photo mockup job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
+      "description": "Poll any async render, video, upload, photo mockup, or seam fix job until it succeeds or fails, then return the final result and credits charged. Blocks while polling.",
       "inputSchema": {
         "type": "object",
         "properties": {

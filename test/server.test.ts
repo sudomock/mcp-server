@@ -64,6 +64,8 @@ const EXPECTED_TOOLS = [
   "list_webhook_deliveries",
   "replay_webhook_delivery",
   "upload_local_file",
+  "check_seams",
+  "fix_seams",
   // The names the hosted server publishes, so both offer one set of tools.
   "list_fonts",
   "create_upload_url",
@@ -174,6 +176,8 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
       "photo_mockup.failed",
       "photo_mockup_render.succeeded",
       "photo_mockup_render.failed",
+      "seam_fix.succeeded",
+      "seam_fix.failed",
       "webhook.test",
     ]);
     assert.deepEqual(webhook.properties?.event_naming.enum, ["legacy", "current"]);
@@ -203,6 +207,7 @@ test("exposes the deployed render, Studio, webhook, and job contracts", async ()
       "2d_render",
       "photo_mockup_create",
       "photo_mockup_render",
+      "seam_fix",
     ]);
     for (const name of ["render_2d_surface", "render_2d_print_area"]) {
       assert.ok(!("blend_mode" in (schema(name).properties ?? {})));
@@ -833,6 +838,122 @@ test("background removal: standalone tool + opt-in flag at the right body level"
     });
     assert.equal(badUrl.isError, true);
     assert.equal(requests.length, 5);
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("seam tools: the check is sync and projected, the fix is an async job read with get_job", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const requests: Array<{ path: string; body: unknown }> = [];
+
+  globalThis.fetch = async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    requests.push({ path, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    if (path === "/api/v1/check-seams") {
+      return Response.json({
+        success: true,
+        data: {
+          status: "visible_seam",
+          seams: [{ side: "left_right", status: "visible_seam", ranges: [[10, 40]], score: 0.9 }],
+          width: 1024,
+          height: 1024,
+          fixable: true,
+          unfixable_reason: null,
+          previous_fix: null,
+          undocumented: "dropped",
+        },
+      });
+    }
+    if (path === "/api/v1/fix-seams") {
+      return Response.json({ job_id: "job-seam", kind: "seam_fix", status: "queued" }, { status: 202 });
+    }
+    return Response.json({
+      job_id: "job-seam",
+      kind: "seam_fix",
+      status: "succeeded",
+      result_url: "https://cdn.example.com/result.png",
+      alternative_url: null,
+      result_status: "seamless",
+      changes: "edges",
+      stage: "finishing",
+      undocumented: "dropped",
+    });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  const text = (result: Awaited<ReturnType<Client["callTool"]>>) =>
+    JSON.parse((result.content as Array<{ type: "text"; text: string }>)[0].text);
+  try {
+    const check = text(
+      await client.callTool({
+        name: "check_seams",
+        arguments: { image_url: "https://example.com/tile.png", crop_aspect: 1 },
+      })
+    );
+    assert.deepEqual(check, {
+      success: true,
+      data: {
+        status: "visible_seam",
+        seams: [{ side: "left_right", status: "visible_seam", ranges: [[10, 40]] }],
+        width: 1024,
+        height: 1024,
+        fixable: true,
+        unfixable_reason: null,
+        previous_fix: null,
+      },
+    });
+
+    const accepted = text(
+      await client.callTool({ name: "fix_seams", arguments: { image_url: "https://example.com/tile.png" } })
+    );
+    assert.equal(accepted.job_id, "job-seam");
+    assert.equal(accepted.kind, "seam_fix");
+
+    const job = text(await client.callTool({ name: "get_job", arguments: { job_id: "job-seam" } }));
+    assert.equal(job.result_url, "https://cdn.example.com/result.png");
+    assert.equal(job.alternative_url, null);
+    assert.equal(job.result_status, "seamless");
+    assert.equal(job.changes, "edges");
+    assert.equal(job.stage, "finishing");
+    assert.ok(!("undocumented" in job));
+
+    // A crop is sent only when named; a shape that is not positive is refused
+    // before any request.
+    const bad = await client.callTool({
+      name: "check_seams",
+      arguments: { image_url: "https://example.com/tile.png", crop_aspect: 0 },
+    });
+    assert.equal(bad.isError, true);
+    assert.deepEqual(
+      requests.map((request) => [request.path, request.body]),
+      [
+        ["/api/v1/check-seams", { url: "https://example.com/tile.png", crop_aspect: 1 }],
+        ["/api/v1/fix-seams", { url: "https://example.com/tile.png" }],
+        ["/api/v1/jobs/job-seam", undefined],
+      ]
+    );
+
+    // Every tile parameter, on every tool, points at the check.
+    const { tools } = await client.listTools();
+    const tileDescriptions: string[] = [];
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== "object") return;
+      const properties = (node as { properties?: Record<string, { description?: string }> }).properties;
+      if (properties?.tile) tileDescriptions.push(properties.tile.description ?? "");
+      Object.values(node).forEach(walk);
+    };
+    tools.forEach((tool) => walk(tool.inputSchema));
+    assert.ok(tileDescriptions.length >= 3);
+    for (const description of tileDescriptions) {
+      assert.ok(description.endsWith("Check the tile with check_seams first."), description);
+    }
   } finally {
     await client.close();
     await server.close();
