@@ -1358,6 +1358,68 @@ test("job tools return only outcome fields and redact engine errors", async () =
   }
 });
 
+test("job tools hand back a failed job's error reason and nothing else from its details", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const failedFix = (job_id: string, reason: string) => ({
+    job_id,
+    kind: "seam_fix",
+    status: "failed",
+    credits_charged: 0,
+    error: {
+      error_code: "TILE_NOT_FIXABLE",
+      message: "This image could not be made into a seamless tile.",
+      details: { reason, score: 0.42, attempts: 3 },
+    },
+  });
+  globalThis.fetch = async (input) => {
+    const path = new URL(String(input)).pathname;
+    if (path === "/api/v1/jobs") {
+      return Response.json({
+        jobs: [
+          failedFix("job-a", "no_clean_result"),
+          failedFix("job-b", "engine_timeout"),
+          { job_id: "job-c", kind: "seam_fix", status: "succeeded", error: { details: { reason: "not_a_pattern_tile" } } },
+        ],
+        next_cursor: null,
+      });
+    }
+    return Response.json(failedFix("job-seam", "not_a_pattern_tile"));
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  const text = (result: Awaited<ReturnType<Client["callTool"]>>) =>
+    JSON.parse((result.content as Array<{ type: "text"; text: string }>)[0].text);
+  try {
+    const job = text(await client.callTool({ name: "get_job", arguments: { job_id: "job-seam" } }));
+    assert.equal(job.error_code, "TILE_NOT_FIXABLE");
+    assert.deepEqual(job.error_details, { reason: "not_a_pattern_tile" });
+    assert.equal(job.credits_charged, 0);
+
+    const waited = text(await client.callTool({ name: "wait_for_job", arguments: { job_id: "job-seam" } }));
+    assert.deepEqual(waited.error_details, { reason: "not_a_pattern_tile" });
+
+    // Only the reason travels; a reason naming the machinery, or one on a job
+    // that did not fail, does not.
+    const { jobs } = text(await client.callTool({ name: "list_jobs", arguments: {} }));
+    assert.deepEqual(
+      jobs.map((listed: Record<string, unknown>) => listed.error_details),
+      [{ reason: "no_clean_result" }, null, null]
+    );
+
+    const { tools } = await client.listTools();
+    const fix = tools.find((tool) => tool.name === "fix_seams");
+    assert.match(fix?.description ?? "", /TILE_NOT_FIXABLE carries error_details\.reason \(not_a_pattern_tile or no_clean_result\), and its credits are refunded\./);
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
 test("formatJobAccepted does NOT fall back to mockup_uuid for the job id", () => {
   // Every async submit endpoint returns job_id; a payload without one must not
   // borrow mockup_uuid as the id (the removed dead fallback).

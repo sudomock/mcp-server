@@ -247,6 +247,18 @@ function publicWarnings(value: unknown, fallback: string): Record<string, unknow
     : [];
 }
 
+// The one detail a failed job's error hands back: its reason, such as why a
+// seam fix could not produce a tile (not_a_pattern_tile or no_clean_result).
+// Every other key of the error's details stays out.
+function publicErrorDetails(error: Record<string, unknown> | null): Record<string, unknown> | null {
+  const details =
+    error?.details && typeof error.details === "object"
+      ? (error.details as Record<string, unknown>)
+      : null;
+  const reason = publicText(details?.reason);
+  return reason ? { reason } : null;
+}
+
 function publicJob(result: unknown): Record<string, unknown> {
   const job = (result ?? {}) as Record<string, unknown>;
   const nestedError =
@@ -278,6 +290,7 @@ function publicJob(result: unknown): Record<string, unknown> {
         )
       : null,
     error_code: publicCode(nestedError?.error_code ?? job.error_code),
+    error_details: failed ? publicErrorDetails(nestedError) : null,
     credits_charged: job.credits_charged ?? null,
     payg,
     created_at: job.created_at ?? null,
@@ -1543,7 +1556,7 @@ server.tool(
 
 server.tool(
   "fix_seams",
-  "Repair a repeating pattern tile so it repeats without a visible seam. Check the tile with check_seams first: a seamless tile needs no fix, and its previous_fix may already hold one. Always async: returns a job_id at once; read the result with get_job or wait_for_job. The finished job carries result_url, alternative_url (a second repaired version when one is available, otherwise null), result_status (the seam check of the result: seamless, faint_seam or visible_seam) and changes (edges when only the edges changed, whole_tile when the whole tile did). A tile with transparent edges, or one too large to fix, is refused without charge. Costs 60 credits; credits are refunded automatically if the fix fails.",
+  "Repair a repeating pattern tile so it repeats without a visible seam. Check the tile with check_seams first: a seamless tile needs no fix, and its previous_fix may already hold one. Always async: returns a job_id at once; read the result with get_job or wait_for_job. The finished job carries result_url, alternative_url (a second repaired version when one is available, otherwise null), result_status (the seam check of the result: seamless, faint_seam or visible_seam) and changes (edges when only the edges changed, whole_tile when the whole tile did). A tile with transparent edges, or one too large to fix, is refused without charge. A fix that fails with error_code TILE_NOT_FIXABLE carries error_details.reason (not_a_pattern_tile or no_clean_result), and its credits are refunded. Costs 60 credits; credits are refunded automatically if the fix fails.",
   {
     ...seamInput("fixed"),
     idempotency_key: z.string().min(1).max(255).optional().describe("Optional retry-stable key for this fix request"),
