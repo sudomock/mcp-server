@@ -259,7 +259,7 @@
     },
     {
       "name": "fix_seams",
-      "description": "Repair a repeating pattern tile so it repeats without a visible seam. Check the tile with check_seams first: a seamless tile needs no fix, and its previous_fix may already hold one. Always async: returns a job_id at once; read the result with get_job or wait_for_job. The finished job carries result_url, alternative_url (a second repaired version when one is available, otherwise null), result_status (the seam check of the result: seamless, faint_seam or visible_seam) and changes (edges when only the edges changed, whole_tile when the whole tile did). A tile with transparent edges, or one too large to fix, is refused without charge. Costs 60 credits; credits are refunded automatically if the fix fails.",
+      "description": "Repair a repeating pattern tile so it repeats without a visible seam. Check the tile with check_seams first: a seamless tile needs no fix, and its previous_fix may already hold one. Always async: returns a job_id at once; read the result with get_job or wait_for_job. The finished job carries result_url, alternative_url (a second repaired version when one is available, otherwise null), result_status (the seam check of the result: seamless, faint_seam or visible_seam) and changes (edges when only the edges changed, whole_tile when the whole tile did). A tile with transparent edges, or one too large to fix, is refused without charge. A fix that fails with error_code TILE_NOT_FIXABLE carries error_details.reason (not_a_pattern_tile or no_clean_result), and its credits are refunded. Costs 60 credits; credits are refunded automatically if the fix fails.",
       "inputSchema": {
         "type": "object",
         "properties": {
