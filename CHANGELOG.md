@@ -18,6 +18,10 @@
   retry with the same key returns the same job instead of starting a new fix.
 - `get_job`, `wait_for_job` and `list_jobs` return `alternative_url`,
   `result_status`, `changes` and `stage`, which a seam fix job fills.
+- `get_job`, `wait_for_job` and `list_jobs` return `error_details` on a
+  failed job: its `reason`, and nothing else from the error's details. A
+  seam fix that fails with `TILE_NOT_FIXABLE` reports `not_a_pattern_tile` or
+  `no_clean_result`, and its credits are refunded.
 - `list_jobs` filters by the `seam_fix` kind.
 - The webhook tools take the `seam_fix.succeeded` and `seam_fix.failed`
   events.
@@ -26,6 +30,9 @@
 
 - Every `tile` parameter description ends with "Check the tile with
   check_seams first."
+- The registry and npm descriptions read "Turn product photos or PSDs into
+  photorealistic mockups: place artwork, edit text, fix tile seams.", and the
+  npm keywords add `photo-mockup`, `seamless-pattern` and `seamless-tile`.
 
 ## [3.8.4] - 2026-11-03
 
