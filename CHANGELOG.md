@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [3.9.1] - 2026-11-06
+
+### Changed
+
+- A seam fix job's `changes` can read `rearranged`, and the job carries
+  `fine_detail` (`unchanged` or `softer`).
+
 ## [3.9.0] - 2026-11-06
 
 ### Added

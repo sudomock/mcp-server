@@ -175,8 +175,9 @@ that shape the way `fit: "crop"` crops it.
 visible seam. It is always async: read the job with `get_job` or
 `wait_for_job`. The finished job carries `result_url`, `alternative_url` (a
 second repaired version when one is available, otherwise `null`),
-`result_status` (the seam check of the result) and `changes` (`edges` or
-`whole_tile`); while it runs, `stage` reads `queued`, `fixing` or `finishing`.
+`result_status` (the seam check of the result), `changes` (`edges`,
+`whole_tile` or `rearranged`) and `fine_detail` (`unchanged` or `softer`); while
+it runs, `stage` reads `queued`, `fixing` or `finishing`.
 A fix that fails with `error_code` `TILE_NOT_FIXABLE` carries
 `error_details.reason`: `not_a_pattern_tile` or `no_clean_result`.
 Seam fix: 60 credits, refunded automatically if the fix fails; seam check: free.
