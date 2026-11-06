@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-11-06
+
 ### Added
 
 - `check_seams` checks whether a repeating pattern tile joins without a
