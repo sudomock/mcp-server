@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [3.10.0] - 2026-11-08
+
+### Added
+
+- `list_folders` lists the folders in your mockup library. `parent_uuid`
+  takes a folder's uuid for the folders inside it, or `root` for the ones at
+  the top of the library; left out, it lists every folder. Each folder
+  carries `parent_uuid` and how many folders, PSD mockups and photo mockups
+  it holds directly. Free.
+- `create_folder` creates a folder, at the top of the library or inside
+  another one with `parent_uuid`. A name has to be unique among the folders
+  beside it, whatever the capitalisation, so the same call can safely be made
+  twice. Free.
+- `move_to_folder` moves any mix of PSD mockups, photo mockups and folders
+  into one folder, or to the top of the library when `target_folder_uuid` is
+  left out. Everything named moves together or nothing does, and moving never
+  changes a mockup's id. Up to 500 ids per list. Free.
+- `list_mockups` and `list_photo_mockups` take `folder_uuid`: a folder's uuid
+  for the mockups directly in it, or `root` for the ones at the top of the
+  library. A call without it returns every mockup, as it did before.
+- Every mockup in both lists, and in `get_mockup_details` and
+  `get_2d_mockup`, carries `folder_uuid` (null at the top of the library).
+
 ## [3.9.1] - 2026-11-06
 
 ### Changed

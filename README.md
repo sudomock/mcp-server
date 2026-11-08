@@ -43,7 +43,7 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 
 | Tool | Description | Credits |
 |------|-------------|---------|
-| `list_mockups` | List your uploaded mockup templates | 0 |
+| `list_mockups` | List your uploaded mockup templates; `folder_uuid` narrows them to one folder | 0 |
 | `get_mockup_details` | Get smart object UUIDs, dimensions, blend modes; with `include_layers`, every layer and its UUID, including the layers inside smart objects | 0 |
 | `render_mockup` | Render a mockup with artwork and/or editable text; `hidden_layers` leaves chosen layers out | 1 |
 | `remove_background` | Get a transparent-PNG cutout at a public URL that stays available for 7 days | 5 |
@@ -56,10 +56,13 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `render_2d_print_area` | Print artwork into one saved print area (a drawn zone) | 5 |
 | `render_video` | Animate a mockup into a video clip (always async) | cost-based (one per account at no charge, then cost-based) |
 | `upload_psd` | Upload a Photoshop PSD/PSB template (sync or async) | 0 |
-| `list_2d_mockups` | List saved photo mockup templates; use `customizable_only` for shopper-ready items | 0 |
+| `list_2d_mockups` | List saved photo mockup templates; use `customizable_only` for shopper-ready items, `folder_uuid` for one folder | 0 |
 | `get_2d_mockup` | Get one photo mockup's saved print areas and its surfaces | 0 |
 | `update_2d_print_areas` | Replace a photo mockup's print-area geometry | 0 |
 | `delete_2d_mockup` | Delete a photo mockup template | 0 |
+| `list_folders` | List the folders in your mockup library | 0 |
+| `create_folder` | Create a folder, at the top of the library or inside another one | 0 |
+| `move_to_folder` | Move mockups and folders into one folder, or to the top of the library | 0 |
 | `get_job` | Check the status of an async job by job_id | 0 |
 | `wait_for_job` | Poll an async job until it succeeds or fails | 0 |
 | `list_jobs` | List async render, video, upload, and photo mockup jobs | 0 |
