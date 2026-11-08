@@ -461,6 +461,7 @@ function publicMockupData(value: unknown): Record<string, unknown> {
   return {
     uuid: mockup.uuid ?? null,
     name: mockup.name ?? null,
+    folder_uuid: mockup.folder_uuid ?? null,
     thumbnail: mockup.thumbnail ?? null,
     width: mockup.width ?? null,
     height: mockup.height ?? null,
@@ -538,6 +539,58 @@ function publicMockupList(result: unknown): Record<string, unknown> {
   };
 }
 
+/** One folder, and how much it holds directly. */
+function publicFolder(value: unknown): Record<string, unknown> {
+  const folder = asRecord(value);
+  return {
+    uuid: folder.uuid ?? null,
+    name: folder.name ?? null,
+    parent_uuid: folder.parent_uuid ?? null,
+    folder_count: folder.folder_count ?? 0,
+    psd_mockup_count: folder.psd_mockup_count ?? 0,
+    photo_mockup_count: folder.photo_mockup_count ?? 0,
+    created_at: folder.created_at ?? null,
+    updated_at: folder.updated_at ?? null,
+  };
+}
+
+function publicFolderResult(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  return {
+    success: envelope.success !== false,
+    data: publicFolder(envelope.data ?? result),
+  };
+}
+
+function publicFolderList(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const data = asRecord(envelope.data);
+  const folders = Array.isArray(data.folders) ? data.folders : [];
+  return {
+    success: envelope.success !== false,
+    data: {
+      folders: folders.map(publicFolder),
+      total: data.total ?? folders.length,
+      limit: data.limit ?? folders.length,
+      offset: data.offset ?? 0,
+    },
+  };
+}
+
+function publicFolderMove(result: unknown): Record<string, unknown> {
+  const envelope = asRecord(result);
+  const data = asRecord(envelope.data ?? result);
+  return {
+    success: envelope.success !== false,
+    data: {
+      target_folder_uuid: data.target_folder_uuid ?? null,
+      moved_psd_mockups: data.moved_psd_mockups ?? 0,
+      moved_photo_mockups: data.moved_photo_mockups ?? 0,
+      moved_folders: data.moved_folders ?? 0,
+    },
+  };
+}
+
 function publicBackgroundRemoval(result: unknown): Record<string, unknown> {
   const envelope = asRecord(result);
   const data = asRecord(envelope.data ?? result);
@@ -605,6 +658,7 @@ function publicTwoDMockup(value: unknown): Record<string, unknown> {
   return {
     mockup_id: mockup.mockup_id ?? null,
     name: mockup.name ?? null,
+    folder_uuid: mockup.folder_uuid ?? null,
     status: mockup.status ?? null,
     customizable: mockup.customizable === true,
     thumbnail_url: mockup.thumbnail_url ?? null,
@@ -943,12 +997,13 @@ server.tool(
     created_before: z.string().optional().describe("Only mockups created before this ISO 8601 timestamp"),
     sort_by: z.enum(["created_at", "updated_at", "name"]).default("created_at").describe("Sort field"),
     sort_order: z.enum(["asc", "desc"]).default("desc").describe("Sort direction"),
+    folder_uuid: z.string().optional().describe("Only mockups in this folder. Send `root` for the ones at the top of the library. Leave it out for every mockup, wherever it is."),
   },
-  async ({ limit, offset, name, created_after, created_before, sort_by, sort_order }) => {
+  async ({ limit, offset, name, created_after, created_before, sort_by, sort_order, folder_uuid }) => {
     const result = await apiRequest({
       method: "GET",
       path: "/api/v1/mockups",
-      params: { limit, offset, name, created_after, created_before, sort: sort_by, order: sort_order },
+      params: { limit, offset, name, created_after, created_before, sort: sort_by, order: sort_order, folder_uuid },
     });
     return {
       content: [{
@@ -2068,12 +2123,13 @@ server.tool(
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
     customizable_only: z.boolean().default(false).describe("Return only mockups ready for shopper customization"),
+    folder_uuid: z.string().optional().describe("Only mockups in this folder. Send `root` for the ones at the top of the library. Leave it out for every mockup, wherever it is."),
   },
-  async ({ limit, offset, customizable_only }) => {
+  async ({ limit, offset, customizable_only, folder_uuid }) => {
     const result = await apiRequest({
       method: "GET",
       path: "/api/v1/sudoai/2d-mockups",
-      params: { limit, offset, customizable_only },
+      params: { limit, offset, customizable_only, folder_uuid },
     });
     return {
       content: [{
@@ -2181,6 +2237,106 @@ server.tool(
       },
     };
     return { content: [{ type: "text" as const, text: JSON.stringify(output, null, 2) }] };
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Tools: list_folders, create_folder, move_to_folder
+// ---------------------------------------------------------------------------
+
+server.tool(
+  "list_folders",
+  "List the folders in your mockup library. PSD mockups and photo mockups share one tree, and every mockup sits in exactly one folder or at the top of the library. Each folder returns its uuid, name, parent_uuid (null at the top of the library) and how many folders, PSD mockups and photo mockups it holds directly. Pass a folder's uuid to list_mockups or list_photo_mockups as folder_uuid to see what is inside it. Costs 0 credits.",
+  {
+    parent_uuid: z
+      .string()
+      .optional()
+      .describe("Folder whose subfolders to list. Send `root` for the folders at the top of the library. Leave it out to list every folder you have."),
+    limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
+    offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
+  },
+  async ({ parent_uuid, limit, offset }) => {
+    const result = await apiRequest({
+      method: "GET",
+      path: "/api/v1/folders",
+      params: { parent_uuid, limit, offset },
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicFolderList(result), null, 2),
+      }],
+    };
+  }
+);
+
+server.tool(
+  "create_folder",
+  "Create a folder in your mockup library, at the top of it or inside another folder. A name has to be unique among the folders beside it, whatever the capitalisation, so the same call can safely be made twice. Returns the new folder's uuid for move_to_folder and for the folder_uuid filter on the mockup lists. Costs 0 credits.",
+  {
+    name: z.string().min(1).describe("The folder's name"),
+    parent_uuid: z
+      .string()
+      .optional()
+      .describe("The folder to create this one in. Leave it out to create it at the top of the library."),
+  },
+  async ({ name, parent_uuid }) => {
+    const body: Record<string, unknown> = { name };
+    if (parent_uuid !== undefined) body.parent_uuid = parent_uuid;
+    const result = await apiRequest({
+      method: "POST",
+      path: "/api/v1/folders",
+      body,
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicFolderResult(result), null, 2),
+      }],
+    };
+  }
+);
+
+server.tool(
+  "move_to_folder",
+  "Move any mix of PSD mockups, photo mockups and folders into one folder, or to the top of the library. Everything named in the call moves together or nothing does, so there is no half finished move to handle. Moving never changes a mockup's id, so renders, webhooks and integrations keep working against the ids they already hold. A folder moves with everything inside it. Costs 0 credits.",
+  {
+    target_folder_uuid: z
+      .string()
+      .optional()
+      .describe("The folder everything listed moves into. Leave it out to move it all to the top of the library."),
+    psd_mockup_uuids: z.array(z.string()).max(500).optional().describe("PSD mockups to move, up to 500"),
+    photo_mockup_uuids: z.array(z.string()).max(500).optional().describe("Photo mockups to move, up to 500"),
+    folder_uuids: z.array(z.string()).max(500).optional().describe("Folders to move, with everything inside them, up to 500"),
+  },
+  async ({ target_folder_uuid, psd_mockup_uuids, photo_mockup_uuids, folder_uuids }) => {
+    // Nothing to move is a mistake in the call, not a request worth sending.
+    const total =
+      (psd_mockup_uuids?.length ?? 0) +
+      (photo_mockup_uuids?.length ?? 0) +
+      (folder_uuids?.length ?? 0);
+    if (total === 0) {
+      throw new ApiRequestError(
+        "Name at least one mockup or folder to move in psd_mockup_uuids, photo_mockup_uuids or folder_uuids.",
+        "empty_move"
+      );
+    }
+    const result = await apiRequest({
+      method: "POST",
+      path: "/api/v1/folders/move",
+      body: {
+        target_folder_uuid: target_folder_uuid ?? null,
+        psd_mockup_uuids: psd_mockup_uuids ?? [],
+        photo_mockup_uuids: photo_mockup_uuids ?? [],
+        folder_uuids: folder_uuids ?? [],
+      },
+    });
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify(publicFolderMove(result), null, 2),
+      }],
+    };
   }
 );
 

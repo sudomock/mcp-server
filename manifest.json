@@ -57,6 +57,28 @@
       }
     },
     {
+      "name": "create_folder",
+      "description": "Create a folder in your mockup library, at the top of it or inside another folder. A name has to be unique among the folders beside it, whatever the capitalisation, so the same call can safely be made twice. Returns the new folder's uuid for move_to_folder and for the folder_uuid filter on the mockup lists. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The folder's name"
+          },
+          "parent_uuid": {
+            "description": "The folder to create this one in. Leave it out to create it at the top of the library.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
       "name": "create_photo_mockup",
       "description": "Create a reusable photo mockup from a public image URL. Returns the mockup ID and public render targets synchronously. Costs 25 credits. If the image is unsuitable, the 25 credits are refunded automatically. Set is_async=true to queue instead and receive a job_id to poll with get_job or wait_for_job. Use the dashboard for visual fine-tuning. Family-name spelling of create_2d_mockup: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
@@ -430,6 +452,37 @@
             "default": false,
             "description": "Return only mockups ready for shopper customization",
             "type": "boolean"
+          },
+          "folder_uuid": {
+            "description": "Only mockups in this folder. Send `root` for the ones at the top of the library. Leave it out for every mockup, wherever it is.",
+            "type": "string"
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "list_folders",
+      "description": "List the folders in your mockup library. PSD mockups and photo mockups share one tree, and every mockup sits in exactly one folder or at the top of the library. Each folder returns its uuid, name, parent_uuid (null at the top of the library) and how many folders, PSD mockups and photo mockups it holds directly. Pass a folder's uuid to list_mockups or list_photo_mockups as folder_uuid to see what is inside it. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "parent_uuid": {
+            "description": "Folder whose subfolders to list. Send `root` for the folders at the top of the library. Leave it out to list every folder you have.",
+            "type": "string"
+          },
+          "limit": {
+            "default": 20,
+            "description": "Results per page (1-100, default 20)",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "default": 0,
+            "description": "Pagination offset (default 0)",
+            "type": "number",
+            "minimum": 0
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -565,6 +618,10 @@
               "asc",
               "desc"
             ]
+          },
+          "folder_uuid": {
+            "description": "Only mockups in this folder. Send `root` for the ones at the top of the library. Leave it out for every mockup, wherever it is.",
+            "type": "string"
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -593,6 +650,10 @@
             "default": false,
             "description": "Return only mockups ready for shopper customization",
             "type": "boolean"
+          },
+          "folder_uuid": {
+            "description": "Only mockups in this folder. Send `root` for the ones at the top of the library. Leave it out for every mockup, wherever it is.",
+            "type": "string"
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -647,6 +708,10 @@
               "asc",
               "desc"
             ]
+          },
+          "folder_uuid": {
+            "description": "Only mockups in this folder. Send `root` for the ones at the top of the library. Leave it out for every mockup, wherever it is.",
+            "type": "string"
           }
         },
         "$schema": "http://json-schema.org/draft-07/schema#"
@@ -710,6 +775,44 @@
       "inputSchema": {
         "type": "object",
         "properties": {},
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "move_to_folder",
+      "description": "Move any mix of PSD mockups, photo mockups and folders into one folder, or to the top of the library. Everything named in the call moves together or nothing does, so there is no half finished move to handle. Moving never changes a mockup's id, so renders, webhooks and integrations keep working against the ids they already hold. A folder moves with everything inside it. Costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target_folder_uuid": {
+            "description": "The folder everything listed moves into. Leave it out to move it all to the top of the library.",
+            "type": "string"
+          },
+          "psd_mockup_uuids": {
+            "description": "PSD mockups to move, up to 500",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "photo_mockup_uuids": {
+            "description": "Photo mockups to move, up to 500",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "folder_uuids": {
+            "description": "Folders to move, with everything inside them, up to 500",
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },

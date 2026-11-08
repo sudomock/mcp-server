@@ -66,6 +66,9 @@ const EXPECTED_TOOLS = [
   "upload_local_file",
   "check_seams",
   "fix_seams",
+  "list_folders",
+  "create_folder",
+  "move_to_folder",
   // The names the hosted server publishes, so both offer one set of tools.
   "list_fonts",
   "create_upload_url",
@@ -1627,5 +1630,204 @@ test("the signed upload PUT carries no API identity headers", async () => {
     if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
     else process.env.SUDOMOCK_API_KEY = originalApiKey;
     await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("folder tools: list is projected, create sends only what was given, move is all or nothing", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const calls: Array<{ path: string; query: string; body: unknown }> = [];
+
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    calls.push({
+      path: url.pathname,
+      query: url.search,
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    if (url.pathname === "/api/v1/folders" && (init?.method ?? "GET") === "GET") {
+      return Response.json({
+        success: true,
+        data: {
+          folders: [
+            {
+              uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061",
+              name: "Frames",
+              parent_uuid: null,
+              folder_count: 1,
+              psd_mockup_count: 12,
+              photo_mockup_count: 4,
+              created_at: "2026-11-08T10:00:00Z",
+              updated_at: "2026-11-08T10:00:00Z",
+              undocumented: "dropped",
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/folders/move") {
+      return Response.json({
+        success: true,
+        data: {
+          target_folder_uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061",
+          moved_psd_mockups: 1,
+          moved_photo_mockups: 0,
+          moved_folders: 0,
+          undocumented: "dropped",
+        },
+      });
+    }
+    return Response.json(
+      {
+        success: true,
+        data: {
+          uuid: "2f8b4a17-5c93-4e21-b7d0-61a3c8e5f920",
+          name: "8x10",
+          parent_uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061",
+          folder_count: 0,
+          psd_mockup_count: 0,
+          photo_mockup_count: 0,
+          undocumented: "dropped",
+        },
+      },
+      { status: 201 },
+    );
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  const text = (result: Awaited<ReturnType<Client["callTool"]>>) =>
+    JSON.parse((result.content as Array<{ type: "text"; text: string }>)[0].text);
+  try {
+    const list = text(await client.callTool({ name: "list_folders", arguments: { parent_uuid: "root" } }));
+    assert.equal(calls[0].path, "/api/v1/folders");
+    assert.ok(calls[0].query.includes("parent_uuid=root"));
+    assert.ok(calls[0].query.includes("limit=20"));
+    assert.equal(list.data.total, 1);
+    assert.equal(list.data.folders[0].psd_mockup_count, 12);
+    assert.equal(list.data.folders[0].parent_uuid, null);
+    assert.ok(!("undocumented" in list.data.folders[0]));
+
+    text(await client.callTool({ name: "create_folder", arguments: { name: "8x10" } }));
+    assert.deepEqual(calls[1].body, { name: "8x10" });
+
+    const created = text(
+      await client.callTool({
+        name: "create_folder",
+        arguments: { name: "8x10", parent_uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061" },
+      }),
+    );
+    assert.deepEqual(calls[2].body, {
+      name: "8x10",
+      parent_uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061",
+    });
+    assert.equal(created.data.name, "8x10");
+    assert.ok(!("undocumented" in created.data));
+
+    const moved = text(
+      await client.callTool({
+        name: "move_to_folder",
+        arguments: {
+          target_folder_uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061",
+          psd_mockup_uuids: ["8f2c1d90-6b4e-4a37-9e55-0d1c7a3f21b8"],
+        },
+      }),
+    );
+    assert.deepEqual(calls[3].body, {
+      target_folder_uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061",
+      psd_mockup_uuids: ["8f2c1d90-6b4e-4a37-9e55-0d1c7a3f21b8"],
+      photo_mockup_uuids: [],
+      folder_uuids: [],
+    });
+    assert.equal(moved.data.moved_psd_mockups, 1);
+    assert.ok(!("undocumented" in moved.data));
+
+    // No target means the top of the library, which the API reads as null.
+    text(await client.callTool({ name: "move_to_folder", arguments: { folder_uuids: ["2f8b4a17-5c93-4e21-b7d0-61a3c8e5f920"] } }));
+    assert.equal((calls[4].body as Record<string, unknown>).target_folder_uuid, null);
+
+    const empty = await client.callTool({ name: "move_to_folder", arguments: {} });
+    assert.equal(empty.isError, true);
+    assert.equal(calls.length, 5, "an empty move is not sent to the API");
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("both mockup lists filter by folder_uuid and report where each mockup sits", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const queries: string[] = [];
+
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    queries.push(url.search);
+    if (url.pathname === "/api/v1/mockups") {
+      return Response.json({
+        success: true,
+        data: {
+          mockups: [
+            {
+              uuid: "8f2c1d90-6b4e-4a37-9e55-0d1c7a3f21b8",
+              name: "Oak frame 8x10",
+              folder_uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061",
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        },
+      });
+    }
+    return Response.json({
+      success: true,
+      data: [
+        {
+          mockup_id: "7d1e4c09-2a68-4f35-9b4e-3c0f8a2d6517",
+          name: "Oak frame on a wall",
+          folder_uuid: null,
+          status: "ready",
+        },
+      ],
+      total: 1,
+      limit: 20,
+      offset: 0,
+    });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  const text = (result: Awaited<ReturnType<Client["callTool"]>>) =>
+    JSON.parse((result.content as Array<{ type: "text"; text: string }>)[0].text);
+  try {
+    const psd = text(
+      await client.callTool({
+        name: "list_mockups",
+        arguments: { folder_uuid: "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061" },
+      }),
+    );
+    assert.ok(queries[0].includes("folder_uuid=c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061"));
+    assert.equal(psd.data.mockups[0].folder_uuid, "c4f1a7d2-3b85-4e60-9a1f-7d2c5e8b4061");
+
+    const photo = text(await client.callTool({ name: "list_photo_mockups", arguments: { folder_uuid: "root" } }));
+    assert.ok(queries[1].includes("folder_uuid=root"));
+    assert.equal(photo.data[0].folder_uuid, null);
+
+    // Left out, the filter never reaches the query string.
+    text(await client.callTool({ name: "list_psd_mockups", arguments: {} }));
+    assert.ok(!queries[2].includes("folder_uuid"));
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
   }
 });
