@@ -2272,7 +2272,7 @@ server.tool(
 
 server.tool(
   "create_folder",
-  "Create a folder in your mockup library, at the top of it or inside another folder. A name has to be unique among the folders beside it, whatever the capitalisation, so a repeat of the same call is refused with FOLDER_NAME_TAKEN instead of creating a second folder. Returns the new folder's uuid for move_to_folder and for the folder_uuid filter on the mockup lists. Costs 0 credits.",
+  "Create a folder in your mockup library, at the top of it or inside another folder. A name has to be unique among the folders beside it, whatever the capitalisation, so calling it twice never builds a second copy; the second call returns FOLDER_NAME_TAKEN. Returns the new folder's uuid for move_to_folder and for the folder_uuid filter on the mockup lists. Costs 0 credits.",
   {
     name: z.string().min(1).describe("The folder's name"),
     parent_uuid: z
