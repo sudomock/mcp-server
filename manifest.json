@@ -935,7 +935,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000, default 2048)",
+            "description": "Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000
@@ -1112,7 +1112,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000, default 2048)",
+            "description": "Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000
@@ -1267,7 +1267,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000, default 2048)",
+            "description": "Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000
@@ -1781,7 +1781,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000, default 2048), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set)",
+            "description": "Output width in pixels (100-10000), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set). Leave it out for the default: 2048, or 1024 while the account is in trial.",
             "anyOf": [
               {
                 "type": "number",
@@ -2000,7 +2000,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000, default 2048)",
+            "description": "Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000
@@ -2540,7 +2540,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000, default 2048), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set)",
+            "description": "Output width in pixels (100-10000), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set). Leave it out for the default: 2048, or 1024 while the account is in trial.",
             "anyOf": [
               {
                 "type": "number",
@@ -2772,7 +2772,7 @@
             ]
           },
           "image_size": {
-            "description": "Width in pixels of the still input frame (default 2048)",
+            "description": "Width in pixels of the still input frame. Leave it out for the default: 2048, or 1024 while the account is in trial.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000

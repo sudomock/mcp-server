@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The render tools (`render_mockup`, `render_2d_surface`,
+  `render_2d_print_area`, `render_photo_mockup`, `render_video` and their
+  family names) send `image_size` only when you name one. Left out, the render
+  comes out at the default: 2048, or 1024 while the account is in trial.
+- A render refused because the account is in trial and the size is above 1024
+  says so, with how to lift it. It was reported as insufficient credits.
+
 ## [3.10.0] - 2026-11-08
 
 ### Added

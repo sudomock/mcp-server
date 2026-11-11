@@ -1419,7 +1419,7 @@ server.tool(
     image_size: z
       .union([z.number().min(100).max(10000), z.literal("original")])
       .optional()
-      .describe("Output width in pixels (100-10000, default 2048), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set)"),
+      .describe("Output width in pixels (100-10000), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set). Leave it out for the default: 2048, or 1024 while the account is in trial."),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (default 90)"),
     dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution metadata (72-2400). Does not change pixel size; use image_size. With image_size 'original' and no dpi, the file carries the PSD's own resolution. jpg/png recommended for widest print-tool compatibility."),
     rotate: z.number().min(-360).max(360).default(0).describe("Rotate artwork in degrees"),
@@ -1822,7 +1822,7 @@ const TWO_D_SHARED = {
     .optional()
     .describe("Where the artwork sits within its target. Omit to accept the renderer's anchor, which is the center."),
   image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
-  image_size: z.number().min(100).max(10000).optional().describe("Output width in pixels (100-10000, default 2048)"),
+  image_size: z.number().min(100).max(10000).optional().describe("Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial."),
   quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (1-100, default 90)"),
   is_async: z
     .boolean()
@@ -2546,7 +2546,7 @@ server.tool(
       .optional()
       .describe("Advanced override for the automatic quality selection. Unsupported values are rejected. Omit for automatic selection (recommended)."),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format of the still input frame"),
-    image_size: z.number().min(100).max(10000).optional().describe("Width in pixels of the still input frame (default 2048)"),
+    image_size: z.number().min(100).max(10000).optional().describe("Width in pixels of the still input frame. Leave it out for the default: 2048, or 1024 while the account is in trial."),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for the still input frame (webp/jpg, default 90)"),
     webhook_url: z
       .string()
