@@ -162,6 +162,9 @@ const PAIRS: Array<[original: string, family: string, args: Record<string, unkno
  * The request every name that shipped in 2.8.1 puts on the wire, written out
  * rather than recorded. This is the watchdog: if adding the family spellings
  * changes any of these by a single field, this is what says so.
+ *
+ * One field left these on purpose: the render tools no longer send an
+ * image_size the caller did not name, so the API's own default applies.
  */
 const PINNED_REQUESTS: Array<[tool: string, args: Record<string, unknown>, wire: Wire]> = [
   [
@@ -206,7 +209,7 @@ const PINNED_REQUESTS: Array<[tool: string, args: Record<string, unknown>, wire:
       query: {},
       body: {
         mockup_uuid: "m1",
-        export_options: { image_format: "webp", image_size: 2048, quality: 90 },
+        export_options: { image_format: "webp", quality: 90 },
         smart_objects: [
           {
             uuid: "s1",
@@ -292,7 +295,7 @@ const PINNED_REQUESTS: Array<[tool: string, args: Record<string, unknown>, wire:
             placement: { coverage: 80 },
           },
         ],
-        export_options: { image_format: "webp", image_size: 2048, quality: 90 },
+        export_options: { image_format: "webp", quality: 90 },
       },
     },
   ],
@@ -312,7 +315,7 @@ const PINNED_REQUESTS: Array<[tool: string, args: Record<string, unknown>, wire:
             placement: { fit: "cover" },
           },
         ],
-        export_options: { image_format: "webp", image_size: 2048, quality: 90 },
+        export_options: { image_format: "webp", quality: 90 },
       },
     },
   ],

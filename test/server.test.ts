@@ -1831,3 +1831,93 @@ test("both mockup lists filter by folder_uuid and report where each mockup sits"
     else process.env.SUDOMOCK_API_KEY = originalApiKey;
   }
 });
+
+test("render tools send image_size only when it is given", async () => {
+  // The API answers an account by the size it was asked for: a trial account
+  // that names none gets a render, one that names 2048 gets a refusal. A size
+  // filled in here would turn every plain call into the second kind.
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const sent: Array<Record<string, unknown>> = [];
+
+  globalThis.fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    sent.push(body.export_options as Record<string, unknown>);
+    return Response.json({ success: true, data: {} });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const art = "https://example.com/art.png";
+  const calls: Array<[tool: string, args: Record<string, unknown>]> = [
+    ["render_mockup", { mockup_uuid: "m1", smart_object_uuid: "s1", artwork_url: art }],
+    ["render_psd_mockup", { mockup_uuid: "m1", smart_object_uuid: "s1", artwork_url: art }],
+    ["render_2d_surface", { mockup_uuid: "p1", surface_uuid: "s1", artwork_url: art }],
+    ["render_2d_print_area", { mockup_uuid: "p1", print_area_uuid: "a1", artwork_url: art }],
+    ["render_photo_mockup", { mockup_id: "p1", print_area_uuid: "a1", artwork_url: art }],
+    ["render_video", { mockup_uuid: "m1", smart_object_uuid: "s1", artwork_url: art }],
+  ];
+
+  const client = await connectClient();
+  try {
+    for (const [name, args] of calls) {
+      sent.length = 0;
+      const plain = await client.callTool({ name, arguments: args });
+      assert.notEqual(plain.isError, true, `${name} refused a plain call`);
+      assert.deepEqual(sent[0], { image_format: "webp", quality: 90 }, `${name} named a size nobody asked for`);
+
+      sent.length = 0;
+      await client.callTool({ name, arguments: { ...args, image_size: 1500 } });
+      const named: Record<string, unknown> = sent[0];
+      assert.equal(named.image_size, 1500, `${name} dropped the size it was given`);
+    }
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("a trial size refusal reaches the agent with its reason and remedy; any other 402 keeps the fixed line", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const reason = "Your account is in trial, so output is capped at 1024px.";
+  const remedy =
+    "Add a payment method to render at full width: " +
+    "https://sudomock.com/dashboard/billing?action=payg-checkout. " +
+    "Or lower image_size to 1024 or below to keep testing.";
+  let answer: Record<string, unknown> = {};
+
+  globalThis.fetch = async () => Response.json(answer, { status: 402 });
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const render = { mockup_uuid: "m1", smart_object_uuid: "s1", artwork_url: "https://example.com/art.png", image_size: 2048 };
+  const client = await connectClient();
+  const refusal = async () => {
+    const result = await client.callTool({ name: "render_mockup", arguments: render });
+    assert.equal(result.isError, true);
+    return (result.content as Array<{ type: "text"; text: string }>)[0].text;
+  };
+  try {
+    answer = {
+      error_code: "OUTPUT_RESOLUTION_LIMIT",
+      message: reason,
+      detail: reason,
+      details: { requested_width: 2048, limit: 1024, suggestion: remedy },
+      success: false,
+    };
+    const sizeRefusal = await refusal();
+    assert.ok(sizeRefusal.includes(`${reason} ${remedy}`), sizeRefusal);
+    assert.ok(!sizeRefusal.includes("Insufficient credits"));
+
+    answer = { error: "insufficient_credits", message: "You have used all 500 trial credits." };
+    assert.ok((await refusal()).includes("Insufficient credits. Add credits and retry."));
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});

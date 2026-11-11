@@ -935,7 +935,6 @@
             ]
           },
           "image_size": {
-            "default": 2048,
             "description": "Output width in pixels (100-10000, default 2048)",
             "type": "number",
             "minimum": 100,
@@ -1113,7 +1112,6 @@
             ]
           },
           "image_size": {
-            "default": 2048,
             "description": "Output width in pixels (100-10000, default 2048)",
             "type": "number",
             "minimum": 100,
@@ -1269,7 +1267,6 @@
             ]
           },
           "image_size": {
-            "default": 2048,
             "description": "Output width in pixels (100-10000, default 2048)",
             "type": "number",
             "minimum": 100,
@@ -1784,7 +1781,6 @@
             ]
           },
           "image_size": {
-            "default": 2048,
             "description": "Output width in pixels (100-10000, default 2048), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set)",
             "anyOf": [
               {
@@ -2004,7 +2000,6 @@
             ]
           },
           "image_size": {
-            "default": 2048,
             "description": "Output width in pixels (100-10000, default 2048)",
             "type": "number",
             "minimum": 100,
@@ -2545,7 +2540,6 @@
             ]
           },
           "image_size": {
-            "default": 2048,
             "description": "Output width in pixels (100-10000, default 2048), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set)",
             "anyOf": [
               {
@@ -2778,7 +2772,6 @@
             ]
           },
           "image_size": {
-            "default": 2048,
             "description": "Width in pixels of the still input frame (default 2048)",
             "type": "number",
             "minimum": 100,

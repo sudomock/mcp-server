@@ -163,8 +163,9 @@ async function apiRequest({ method, path, params, body, headers: extraHeaders, t
         500: `SudoMock server error. Try again in a moment.`,
       };
 
+      const refusal = resp.status === 402 ? await outputSizeRefusal(resp) : null;
       throw new ApiRequestError(
-        errorMap[resp.status] ?? `SudoMock request failed (${resp.status}).`,
+        refusal ?? errorMap[resp.status] ?? `SudoMock request failed (${resp.status}).`,
         `http_${resp.status}`
       );
     }
@@ -223,6 +224,27 @@ async function getJob(jobId: string, timeout = DEFAULT_TIMEOUT): Promise<Record<
     timeout,
   })) as Record<string, unknown>;
   return publicJob(result);
+}
+
+// image_size only when the caller named one, so the API's own default applies:
+// a size filled in here would reach the API as one the caller asked for.
+function sentImageSize(size: number | "original" | undefined): { image_size?: number | "original" } {
+  return size === undefined ? {} : { image_size: size };
+}
+
+// A trial account that asks for more than its output width has credits, so the
+// fixed 402 line is wrong for it. The API answers with the reason and the
+// remedy; those two sentences are handed on. Every other 402 keeps the fixed line.
+async function outputSizeRefusal(resp: Response): Promise<string | null> {
+  try {
+    const body = (await resp.json()) as Record<string, unknown>;
+    if (body?.error_code !== "OUTPUT_RESOLUTION_LIMIT") return null;
+    const details = (body.details ?? {}) as Record<string, unknown>;
+    const sentences = [publicText(body.message), publicText(details.suggestion)].filter(Boolean);
+    return sentences.length ? sentences.join(" ") : null;
+  } catch {
+    return null;
+  }
 }
 
 function publicText(value: unknown, fallback: string | null = null): string | null {
@@ -1396,7 +1418,7 @@ server.tool(
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format"),
     image_size: z
       .union([z.number().min(100).max(10000), z.literal("original")])
-      .default(2048)
+      .optional()
       .describe("Output width in pixels (100-10000, default 2048), or 'original' for the PSD's own size and resolution (its own width, and the resolution it was saved with unless dpi is set)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (default 90)"),
     dpi: z.number().int().min(72).max(2400).optional().describe("Print resolution metadata (72-2400). Does not change pixel size; use image_size. With image_size 'original' and no dpi, the file carries the PSD's own resolution. jpg/png recommended for widest print-tool compatibility."),
@@ -1500,7 +1522,7 @@ server.tool(
       mockup_uuid: args.mockup_uuid,
       export_options: {
         image_format: args.image_format,
-        image_size: args.image_size,
+        ...sentImageSize(args.image_size),
         quality: args.quality,
         ...(args.dpi !== undefined ? { dpi: args.dpi } : {}),
       },
@@ -1800,7 +1822,7 @@ const TWO_D_SHARED = {
     .optional()
     .describe("Where the artwork sits within its target. Omit to accept the renderer's anchor, which is the center."),
   image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
-  image_size: z.number().min(100).max(10000).default(2048).describe("Output width in pixels (100-10000, default 2048)"),
+  image_size: z.number().min(100).max(10000).optional().describe("Output width in pixels (100-10000, default 2048)"),
   quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (1-100, default 90)"),
   is_async: z
     .boolean()
@@ -1825,7 +1847,7 @@ type TwoDSharedArgs = {
   offset_y?: number;
   position?: string;
   image_format: string;
-  image_size: number;
+  image_size?: number;
   quality: number;
   is_async: boolean;
   // Offered only by render_photo_mockup and render_2d_mockup; see PHOTO_BLEND_MODE.
@@ -1973,7 +1995,7 @@ async function renderTwoD(
     ],
     export_options: {
       image_format: args.image_format,
-      image_size: args.image_size,
+      ...sentImageSize(args.image_size),
       quality: args.quality,
     },
   };
@@ -2524,7 +2546,7 @@ server.tool(
       .optional()
       .describe("Advanced override for the automatic quality selection. Unsupported values are rejected. Omit for automatic selection (recommended)."),
     image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format of the still input frame"),
-    image_size: z.number().min(100).max(10000).default(2048).describe("Width in pixels of the still input frame (default 2048)"),
+    image_size: z.number().min(100).max(10000).optional().describe("Width in pixels of the still input frame (default 2048)"),
     quality: z.number().min(1).max(100).default(90).describe("Compression quality for the still input frame (webp/jpg, default 90)"),
     webhook_url: z
       .string()
@@ -2542,7 +2564,7 @@ server.tool(
     const body: Record<string, unknown> = {
       export_options: {
         image_format: args.image_format,
-        image_size: args.image_size,
+        ...sentImageSize(args.image_size),
         quality: args.quality,
       },
       video,
