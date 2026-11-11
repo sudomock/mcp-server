@@ -2020,6 +2020,9 @@ async function renderTwoD(
   // Whitelist the render output to WHAT-only fields; never surface pipeline internals.
   const renderData =
     (result as { data?: { render_uuid?: string; print_files?: Array<Record<string, unknown>> } })?.data ?? {};
+  // The render's advisories, as the PSD render hands them on; left out when
+  // there are none, so a render without any reads as it always did.
+  const warnings = publicWarnings(asRecord(result).warnings, "The render completed with an advisory.");
   const rendered = {
     data: {
       render_uuid: renderData.render_uuid,
@@ -2030,6 +2033,7 @@ async function renderTwoD(
       })),
     },
     success: true,
+    ...(warnings.length ? { warnings } : {}),
   };
   return { content: [{ type: "text" as const, text: JSON.stringify(rendered, null, 2) }] };
 }

@@ -1879,6 +1879,55 @@ test("render tools send image_size only when it is given", async () => {
   }
 });
 
+test("a render's warnings reach the agent on PSD and photo renders, and a render without any reads as before", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const trialLine = {
+    code: "TRIAL_RENDER_LIMITS",
+    message:
+      "Your account is in trial: renders are watermarked and capped at 1024px. " +
+      "Add a payment method to lift both: https://sudomock.com/dashboard/billing?action=payg-checkout",
+  };
+  let warnings: unknown;
+
+  globalThis.fetch = async () =>
+    Response.json({
+      success: true,
+      data: { render_uuid: "r1", print_files: [{ export_path: "https://cdn.sudomock.com/r.webp" }] },
+      ...(warnings === undefined ? {} : { warnings }),
+    });
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const art = "https://example.com/art.png";
+  const client = await connectClient();
+  const output = async (name: string, args: Record<string, unknown>) => {
+    const result = await client.callTool({ name, arguments: args });
+    return JSON.parse((result.content as Array<{ type: "text"; text: string }>)[0].text);
+  };
+  try {
+    warnings = [trialLine];
+    const psd = await output("render_mockup", { mockup_uuid: "m1", smart_object_uuid: "s1", artwork_url: art });
+    assert.deepEqual(psd.warnings, [trialLine]);
+    for (const [name, args] of [
+      ["render_2d_surface", { mockup_uuid: "p1", surface_uuid: "s1", artwork_url: art }],
+      ["render_2d_print_area", { mockup_uuid: "p1", print_area_uuid: "a1", artwork_url: art }],
+      ["render_photo_mockup", { mockup_id: "p1", print_area_uuid: "a1", artwork_url: art }],
+    ] as Array<[string, Record<string, unknown>]>) {
+      assert.deepEqual((await output(name, args)).warnings, [trialLine], `${name} dropped the render's warnings`);
+    }
+
+    warnings = undefined;
+    const quiet = await output("render_2d_print_area", { mockup_uuid: "p1", print_area_uuid: "a1", artwork_url: art });
+    assert.ok(!("warnings" in quiet));
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
 test("a trial size refusal reaches the agent with its reason and remedy; any other 402 keeps the fixed line", async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.SUDOMOCK_API_KEY;

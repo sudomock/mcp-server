@@ -10,6 +10,8 @@
   comes out at the default: 2048, or 1024 while the account is in trial.
 - A render refused because the account is in trial and the size is above 1024
   says so, with how to lift it. It was reported as insufficient credits.
+- The photo mockup render tools return the render's `warnings` when it has
+  any, as `render_mockup` does.
 
 ## [3.10.0] - 2026-11-08
 
