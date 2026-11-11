@@ -288,6 +288,7 @@ function publicJob(result: unknown): Record<string, unknown> {
       ? (job.error as Record<string, unknown>)
       : null;
   const failed = job.status === "failed";
+  const jobWarnings = publicWarnings(job.warnings, "The render completed with an advisory.");
   const payg =
     job.payg && typeof job.payg === "object"
       ? {
@@ -329,6 +330,8 @@ function publicJob(result: unknown): Record<string, unknown> {
     result_status: job.result_status ?? null,
     changes: job.changes ?? null,
     stage: job.stage ?? null,
+    // The finished render's advisories, on a job that has any.
+    ...(jobWarnings.length ? { warnings: jobWarnings } : {}),
   };
 }
 

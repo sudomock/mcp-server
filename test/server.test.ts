@@ -1916,9 +1916,15 @@ test("a render's warnings reach the agent on PSD and photo renders, and a render
       assert.deepEqual((await output(name, args)).warnings, [trialLine], `${name} dropped the render's warnings`);
     }
 
+    // A queued render is read back as a job, and its warnings come with it.
+    const job = await output("get_job", { job_id: "5f1c0b2a-7d43-4e9a-8c16-0b5d3f7a2e94" });
+    assert.deepEqual(job.warnings, [trialLine]);
+
     warnings = undefined;
     const quiet = await output("render_2d_print_area", { mockup_uuid: "p1", print_area_uuid: "a1", artwork_url: art });
     assert.ok(!("warnings" in quiet));
+    const quietJob = await output("get_job", { job_id: "5f1c0b2a-7d43-4e9a-8c16-0b5d3f7a2e94" });
+    assert.ok(!("warnings" in quietJob));
   } finally {
     await client.close();
     await server.close();
