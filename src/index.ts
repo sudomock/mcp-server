@@ -686,7 +686,7 @@ function publicTwoDMockup(value: unknown): Record<string, unknown> {
     source_height: mockup.source_height ?? null,
     print_areas: areas.map(publicPrintArea),
     // One entry per printable product in the photo, or the main wall of a room
-    // photo, with label naming what was detected on it, such as "wall" or
+    // photo, with label naming what the surface is, such as "wall" or
     // "pillow". The fixed
     // "coverage: full" that used to ride along named nothing the
     // caller could act on while reading exactly like a dial they could turn.
@@ -1430,7 +1430,7 @@ server.tool(
     opacity: z.number().min(0).max(100).default(100).describe("Layer opacity percentage"),
     saturation: z.number().min(-100).max(100).default(0).describe("Saturation adjustment"),
     vibrance: z.number().min(-100).max(100).default(0).describe("Vibrance adjustment (-100 to 100)"),
-    blur: z.number().min(0).max(100).default(0).describe("Gaussian blur strength (0 to 100)"),
+    blur: z.number().min(0).max(100).default(0).describe("Softens the artwork, 0 for sharp to 100 for the strongest blur"),
     export_label: z.string().optional().describe("Optional label for file naming"),
     is_async: z
       .boolean()

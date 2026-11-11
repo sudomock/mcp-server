@@ -7,6 +7,7 @@
 ### Changed
 
 - Internal cleanup.
+- Wording in some field descriptions and README sections.
 - An error or advisory now carries the text the API sent. A fallback is used
   only when the API sent none, so a message is never empty or of the wrong
   type. A failed job still hands back only its reason from the error details.

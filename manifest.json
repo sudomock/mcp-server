@@ -1874,7 +1874,7 @@
           },
           "blur": {
             "default": 0,
-            "description": "Gaussian blur strength (0 to 100)",
+            "description": "Softens the artwork, 0 for sharp to 100 for the strongest blur",
             "type": "number",
             "minimum": 0,
             "maximum": 100
@@ -2633,7 +2633,7 @@
           },
           "blur": {
             "default": 0,
-            "description": "Gaussian blur strength (0 to 100)",
+            "description": "Softens the artwork, 0 for sharp to 100 for the strongest blur",
             "type": "number",
             "minimum": 0,
             "maximum": 100

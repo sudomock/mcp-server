@@ -51,7 +51,7 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 | `fix_seams` | Repair a pattern tile's seams so it repeats cleanly (always async) | 60 |
 | `list_fonts` | List the fonts available for text layers, including your uploads | 0 |
 | `create_upload_url` | Get an upload URL for a local file and the file URL it will have | 0 |
-| `create_2d_mockup` | Create a photo mockup and detect printable surfaces automatically | 25 |
+| `create_2d_mockup` | Create a photo mockup with its printable surfaces ready to render | 25 |
 | `render_2d_surface` | Print artwork across a whole surface (all-over) | 5 |
 | `render_2d_print_area` | Print artwork into one saved print area (a drawn zone) | 5 |
 | `render_video` | Animate a mockup into a video clip (always async) | cost-based (one per account at no charge, then cost-based) |
@@ -139,9 +139,9 @@ never both, and send `width` and `height` together. `position`, `offset_x`,
 you leave out is left out of the request, so the renderer's own default
 applies rather than a copy of it kept here.
 
-Each entry in a photo mockup's `surfaces` carries a `label`, what was detected
-there, such as `pillow` or `wall`, so you can tell surfaces apart before you
-pick one. `update_2d_print_areas` takes an optional `print_area_id` on each
+Each entry in a photo mockup's `surfaces` carries a `label`, what the surface
+is, such as `pillow` or `wall`, so you can tell surfaces apart before you pick
+one. `update_2d_print_areas` takes an optional `print_area_id` on each
 area: an area that sends one of the mockup's ids keeps it, and an area without
 one gets a new id.
 
