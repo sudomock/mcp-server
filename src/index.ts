@@ -34,19 +34,6 @@ const CLIENT_ID = `mcp-stdio/${PACKAGE_VERSION}`;
 // User-Agent keeps the SudoMock-MCP/ prefix: the API attributes stdio renders by that
 // prefix (source=stdio_mcp). The version travels in X-SudoMock-Client.
 const USER_AGENT = `SudoMock-MCP/${PACKAGE_VERSION} (stdio)`;
-// Normalizes an error text before it reaches the caller
-// is swallowed. The pattern is kept encoded because this repository and the
-// npm package are PUBLIC; listing the terms themselves would make the filter
-// unsafe. Behaviour is the same as
-// BEFORE the encoding.
-const NON_PUBLIC_TEXT = new RegExp(
-  Buffer.from(
-    "_PATTERN_",
-    "base64",
-  ).toString(),
-  "i",
-);
-
 function getApiKey(): string {
   const key = process.env.SUDOMOCK_API_KEY;
   if (!key) {
@@ -247,14 +234,21 @@ async function outputSizeRefusal(resp: Response): Promise<string | null> {
   }
 }
 
+/**
+ * The text the API sent, or the fallback when it sent none.
+ *
+ * The field is typed as a string but arrives from JSON, where it can be an
+ * object, an array or null. Anything that is not a non-empty string becomes
+ * the fallback, so the model reading this tool's answer never meets a message
+ * of the wrong type.
+ */
 function publicText(value: unknown, fallback: string | null = null): string | null {
-  if (typeof value !== "string" || !value) return fallback;
-  return NON_PUBLIC_TEXT.test(value) ? fallback : value;
+  return typeof value === "string" && value ? value : fallback;
 }
 
+/** The error code the API sent, or null when it sent none. */
 function publicCode(value: unknown): string | null {
-  if (typeof value !== "string" || !value) return null;
-  return NON_PUBLIC_TEXT.test(value) ? "PROCESSING_FAILED" : value;
+  return typeof value === "string" && value ? value : null;
 }
 
 function publicWarnings(value: unknown, fallback: string): Record<string, unknown>[] {

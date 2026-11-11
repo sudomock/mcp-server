@@ -412,18 +412,18 @@ test("render_mockup returns only public output fields and safe warnings", async 
             export_path: "https://cdn.sudomock.com/render.webp",
             smart_object_uuid: "223e4567-e89b-12d3-a456-426614174001",
             render_uuid: "render-123",
-            private_storage_key: "renders/private.webp",
+            x_field_e: "value-e1",
           },
         ],
         render_uuid: "render-123",
-        text_layers: [{ resolved_font: { postscript_name: "PrivateFont" } }],
-        model: "value-g",
+        text_layers: [{ resolved_font: { postscript_name: "PlaceholderFont" } }],
+        x_field_g: "value-g",
       },
       warnings: [
         {
           code: "ADVISORY_X",
-          message: "Private model prompt failed for x_field_a.",
-          debug: "private",
+          message: "internal diagnostic",
+          x_field_h: "value-h",
         },
       ],
     });
@@ -457,8 +457,8 @@ test("render_mockup returns only public output fields and safe warnings", async 
       },
       warnings: [
         {
-          code: "PROCESSING_FAILED",
-          message: "The render completed with an advisory.",
+          code: "ADVISORY_X",
+          message: "internal diagnostic",
         },
       ],
     });
@@ -487,12 +487,12 @@ test("read tools project undocumented backend fields out of public results", asy
         size: { width: 800, height: 600 },
         position: { x: 0, y: 0, width: 800, height: 600 },
         print_area_presets: [],
-        x_field_a: "private-surface",
+        x_field_a: "value-a",
       },
     ],
     text_layers: [],
     thumbnails: [],
-    model: "value-g",
+    x_field_g: "value-g",
   };
 
   globalThis.fetch = async (input) => {
@@ -1303,8 +1303,8 @@ test("formatJobAccepted surfaces the async 202 job contract", () => {
       job_id: "job-123",
       kind: "render",
       status: "queued",
-      model: "value-g",
-      prompt: "private instruction",
+      x_field_g: "value-g",
+      x_field_f: "value-f",
     })
   );
   assert.equal(out.accepted, true);
@@ -1313,11 +1313,11 @@ test("formatJobAccepted surfaces the async 202 job contract", () => {
   assert.equal(out.status, "queued");
   assert.equal(out.status_url, "/api/v1/jobs/job-123");
   assert.ok(!("raw" in out));
-  assert.ok(!("model" in out));
-  assert.ok(!("prompt" in out));
+  assert.ok(!("x_field_g" in out));
+  assert.ok(!("x_field_f" in out));
 });
 
-test("job tools return only outcome fields and redact engine errors", async () => {
+test("job tools return only the documented outcome fields", async () => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.SUDOMOCK_API_KEY;
   globalThis.fetch = async () =>
@@ -1326,12 +1326,12 @@ test("job tools return only outcome fields and redact engine errors", async () =
       kind: "2d_render",
       status: "failed",
       error: {
-        error_code: "ADVISORY_X",
-        message: "Private model prompt failed for x_field_a.",
+        error_code: "ASSET_VALIDATION_FAILED",
+        message: "One or more artwork inputs are invalid.",
       },
-      model: "value-g",
-      prompt: "private instruction",
-      x_field_a: "private-surface",
+      x_field_g: "value-g",
+      x_field_f: "value-f",
+      x_field_a: "value-a",
     });
   process.env.SUDOMOCK_API_KEY = "sm_test";
 
@@ -1344,13 +1344,10 @@ test("job tools return only outcome fields and redact engine errors", async () =
     const job = JSON.parse(
       (result.content as Array<{ type: "text"; text: string }>)[0].text
     );
-    assert.equal(job.error_code, "PROCESSING_FAILED");
-    assert.equal(
-      job.error,
-      "Processing failed. Retry or contact support with the job ID."
-    );
-    assert.ok(!("model" in job));
-    assert.ok(!("prompt" in job));
+    assert.equal(job.error_code, "ASSET_VALIDATION_FAILED");
+    assert.equal(job.error, "One or more artwork inputs are invalid.");
+    assert.ok(!("x_field_g" in job));
+    assert.ok(!("x_field_f" in job));
     assert.ok(!("x_field_a" in job));
   } finally {
     await client.close();
@@ -1381,7 +1378,7 @@ test("job tools hand back a failed job's error reason and nothing else from its 
       return Response.json({
         jobs: [
           failedFix("job-a", "no_clean_result"),
-          failedFix("job-b", "engine_timeout"),
+          failedFix("job-b", "some_other_reason"),
           { job_id: "job-c", kind: "seam_fix", status: "succeeded", error: { details: { reason: "not_a_pattern_tile" } } },
         ],
         next_cursor: null,
@@ -1403,12 +1400,12 @@ test("job tools hand back a failed job's error reason and nothing else from its 
     const waited = text(await client.callTool({ name: "wait_for_job", arguments: { job_id: "job-seam" } }));
     assert.deepEqual(waited.error_details, { reason: "not_a_pattern_tile" });
 
-    // Only the reason travels; a reason naming the machinery, or one on a job
-    // that did not fail, does not.
+    // Only the reason travels out of the error's details, and only on a job
+    // that actually failed. The score and the attempt count stay out.
     const { jobs } = text(await client.callTool({ name: "list_jobs", arguments: {} }));
     assert.deepEqual(
       jobs.map((listed: Record<string, unknown>) => listed.error_details),
-      [{ reason: "no_clean_result" }, null, null]
+      [{ reason: "no_clean_result" }, { reason: "some_other_reason" }, null]
     );
 
     const { tools } = await client.listTools();

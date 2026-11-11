@@ -2,8 +2,14 @@
 
 ## [Unreleased]
 
+## [3.11.0] - 2026-11-11
+
 ### Changed
 
+- Internal cleanup.
+- An error or advisory now carries the text the API sent. A fallback is used
+  only when the API sent none, so a message is never empty or of the wrong
+  type. A failed job still hands back only its reason from the error details.
 - The render tools (`render_mockup`, `render_2d_surface`,
   `render_2d_print_area`, `render_photo_mockup`, `render_video` and their
   family names) send `image_size` only when you name one. Left out, the render
