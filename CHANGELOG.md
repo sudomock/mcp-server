@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-11-13
+
+### Added
+
+- `search_ready_made_mockups` reads SudoMock's free library of ready-made
+  mockups: free text, `category`, `product_type` or `tag`, or `slug` for one
+  template with its long-form copy. Name, parameters and wording are the
+  hosted server's own.
+- `list_mockups` points at it for anyone looking for a ready-made mockup
+  rather than one of their own.
+
 ## [3.11.0] - 2026-11-11
 
 ### Changed

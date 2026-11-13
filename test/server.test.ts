@@ -36,6 +36,7 @@ async function connectClient(): Promise<Client> {
 }
 
 const EXPECTED_TOOLS = [
+  "search_ready_made_mockups",
   "list_mockups",
   "get_mockup_details",
   "update_mockup",
@@ -1965,6 +1966,103 @@ test("a trial size refusal reaches the agent with its reason and remedy; any oth
 
     answer = { error: "insufficient_credits", message: "You have used all 500 trial credits." };
     assert.ok((await refusal()).includes("Insufficient credits. Add credits and retry."));
+  } finally {
+    await client.close();
+    await server.close();
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.SUDOMOCK_API_KEY;
+    else process.env.SUDOMOCK_API_KEY = originalApiKey;
+  }
+});
+
+test("search_ready_made_mockups reads the catalogue and points at the next step", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.SUDOMOCK_API_KEY;
+  const calls: string[] = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    calls.push(url.pathname + url.search);
+    if (url.pathname.endsWith("/library/templates")) {
+      return Response.json({
+        templates: [
+          {
+            slug: "accent-coffee-mug-11-15oz-mockup-5afc",
+            title: "Accent Coffee Mug (11, 15oz) Mockup",
+            category: "drinkware",
+            mockup_count: 9,
+            mockups: [
+              {
+                name: "Lifestyle Scene",
+                view: "lifestyle-scene",
+                source_url: "https://assets.example.invalid/a.png",
+              },
+            ],
+          },
+        ],
+        total_templates: 12,
+        total_mockups: 97,
+        page: 1,
+        limit: 10,
+        pages: 2,
+      });
+    }
+    return Response.json({
+      slug: "accent-coffee-mug-11-15oz-mockup-5afc",
+      title: "Accent Coffee Mug (11, 15oz) Mockup",
+      category: "drinkware",
+      mockup_count: 9,
+      long_description: "The scene described at length.",
+      mockups: [],
+    });
+  };
+  process.env.SUDOMOCK_API_KEY = "sm_test";
+
+  const client = await connectClient();
+  const read = (result: Awaited<ReturnType<Client["callTool"]>>) =>
+    JSON.parse((result.content as Array<{ type: "text"; text: string }>)[0].text);
+  try {
+    const page = read(
+      await client.callTool({
+        name: "search_ready_made_mockups",
+        arguments: { search: "coffee mug", category: "drinkware", tag: "coffee-mug-mockup", limit: 10 },
+      })
+    );
+    assert.equal(page.total_mockups, 97);
+    assert.equal(page.templates[0].mockups[0].source_url, "https://assets.example.invalid/a.png");
+    assert.match(page.next_step, /create_photo_mockup/);
+
+    // The tag filter travels under the name the API reads, and the free text
+    // and the facets travel beside it.
+    const listed = new URLSearchParams(calls[0].split("?")[1]);
+    assert.equal(listed.get("search"), "coffee mug");
+    assert.equal(listed.get("category"), "drinkware");
+    assert.equal(listed.get("tags"), "coffee-mug-mockup");
+    assert.equal(listed.get("limit"), "10");
+    assert.equal(listed.get("page"), "1");
+
+    // A slug reads ONE template instead of searching, on its own path.
+    const one = read(
+      await client.callTool({
+        name: "search_ready_made_mockups",
+        arguments: { slug: "accent-coffee-mug-11-15oz-mockup-5afc" },
+      })
+    );
+    assert.equal(one.long_description, "The scene described at length.");
+    assert.equal(
+      calls[1],
+      "/api/v1/library/templates/accent-coffee-mug-11-15oz-mockup-5afc"
+    );
+
+    // The one tool the account's own listing points at for the catalogue.
+    const { tools } = await client.listTools();
+    const own = tools.find((tool) => tool.name === "list_mockups");
+    assert.match(own?.description ?? "", /use search_ready_made_mockups\.$/);
+    const search = tools.find((tool) => tool.name === "search_ready_made_mockups");
+    assert.match(search?.description ?? "", /^Search SudoMock's free library of ready-made mockups\./);
+    assert.deepEqual(
+      Object.keys(search?.inputSchema.properties ?? {}).sort(),
+      ["category", "limit", "page", "product_type", "search", "slug", "tag"]
+    );
   } finally {
     await client.close();
     await server.close();

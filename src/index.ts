@@ -1007,7 +1007,7 @@ instrumentToolCalls(server);
 
 server.tool(
   "list_mockups",
-  "List your uploaded mockup templates with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details.",
+  "List the mockup templates in your own account with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details. To find a ready-made mockup from SudoMock's free library instead, use search_ready_made_mockups.",
   {
     limit: z.number().min(1).max(100).default(20).describe("Results per page (1-100, default 20)"),
     offset: z.number().min(0).default(0).describe("Pagination offset (default 0)"),
@@ -3047,6 +3047,71 @@ server.tool(
       content: [{
         type: "text" as const,
         text: JSON.stringify(publicUploadTarget(result), null, 2),
+      }],
+    };
+  }
+);
+
+// What the hosted tool appends to its answer, word for word.
+const READY_MADE_NEXT_STEP =
+  "Send a mockup's source_url to create_photo_mockup: it becomes a reusable " +
+  "mockup on your account for 25 credits, and each render of it costs 5.";
+
+// ---------------------------------------------------------------------------
+// Tool: search_ready_made_mockups
+// ---------------------------------------------------------------------------
+
+// Name, parameters and every description here are the hosted server's own, so
+// a setup moved from one to the other reads the same words.
+server.tool(
+  "search_ready_made_mockups",
+  "Search SudoMock's free library of ready-made mockups. Nothing here needs a Photoshop file or a product photo of your own: 6,870 ready-made mockups across 104 product types. A mockup is one view of a product scene (front, folded, flat lay, lifestyle, close-up) and a template is the set of views of that scene, 912 of them. Search by free text, category, product type or tag and you get templates back with every mockup they hold, each carrying the address to render from, so one call is enough to act on. Pass slug=<a hit's slug> to read one template with its long-form copy. Then send a mockup's source_url to create_photo_mockup: it becomes a reusable mockup on your account for 25 credits, and each render of it costs 5. This search itself reads only and costs 0 credits.",
+  {
+    search: z
+      .string()
+      .optional()
+      .describe("Free text matched against a template's title and description, so \"coffee mug\" or \"oversized tee\" both work. Leave it out to list the library."),
+    category: z
+      .string()
+      .optional()
+      .describe("Keep only one top category: apparel, home-living, accessories, drinkware, signage-advertising, print-paper, packaging, branding."),
+    product_type: z
+      .string()
+      .optional()
+      .describe("Keep only one product type, the narrowest level: crewneck-short-sleeve, classic-ceramic-mug, wall-mural, tote-bag."),
+    tag: z
+      .string()
+      .optional()
+      .describe("Keep only templates carrying this tag, such as t-shirt-mockup. Several tags are comma-separated."),
+    slug: z
+      .string()
+      .optional()
+      .describe("Read ONE template instead of searching, for its long-form copy and the facets it is listed under. The slug comes from a search hit."),
+    limit: z
+      .number()
+      .min(1)
+      .max(50)
+      .default(10)
+      .describe("How many templates one page of results carries, 1 to 50."),
+    page: z
+      .number()
+      .min(1)
+      .default(1)
+      .describe("Which page of results to return, counting from 1."),
+  },
+  async ({ search, category, product_type, tag, slug, limit, page }) => {
+    const answer = slug
+      ? await apiRequest({ method: "GET", path: `/api/v1/library/templates/${encodeURIComponent(slug)}` })
+      : await apiRequest({
+          method: "GET",
+          path: "/api/v1/library/templates",
+          params: { page, limit, search, category, product_type, tags: tag },
+        });
+    const body = asRecord(asRecord(answer).data ?? answer);
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({ ...body, next_step: READY_MADE_NEXT_STEP }, null, 2),
       }],
     };
   }

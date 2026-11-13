@@ -1,8 +1,8 @@
 {
   "name": "@sudomock/mcp",
-  "version": "3.11.0",
+  "version": "3.12.0",
   "mcpName": "io.github.sudomock/mcp",
-  "description": "SudoMock MCP server for Claude, Cursor, and VS Code. Turn product photos or PSDs into photorealistic mockups: place artwork, edit text, fix tile seams.",
+  "description": "SudoMock MCP server for Claude, Cursor, and VS Code. Start from a free library of 6,870 ready-made mockups, or bring your own product photo or PSD: place artwork, edit text, fix tile seams.",
   "keywords": [
     "mcp",
     "model-context-protocol",

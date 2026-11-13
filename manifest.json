@@ -571,7 +571,7 @@
     },
     {
       "name": "list_mockups",
-      "description": "List your uploaded mockup templates with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details.",
+      "description": "List the mockup templates in your own account with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details. To find a ready-made mockup from SudoMock's free library instead, use search_ready_made_mockups.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -661,7 +661,7 @@
     },
     {
       "name": "list_psd_mockups",
-      "description": "List your uploaded mockup templates with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details. Family-name spelling of list_mockups: one tool under two names, same arguments, same behavior. Either name works.",
+      "description": "List the mockup templates in your own account with UUIDs, names, and thumbnails. Use returned UUIDs with render_mockup or get_mockup_details. To find a ready-made mockup from SudoMock's free library instead, use search_ready_made_mockups. Family-name spelling of list_mockups: one tool under two names, same arguments, same behavior. Either name works.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -2845,6 +2845,49 @@
         "required": [
           "endpoint_id"
         ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      }
+    },
+    {
+      "name": "search_ready_made_mockups",
+      "description": "Search SudoMock's free library of ready-made mockups. Nothing here needs a Photoshop file or a product photo of your own: 6,870 ready-made mockups across 104 product types. A mockup is one view of a product scene (front, folded, flat lay, lifestyle, close-up) and a template is the set of views of that scene, 912 of them. Search by free text, category, product type or tag and you get templates back with every mockup they hold, each carrying the address to render from, so one call is enough to act on. Pass slug=<a hit's slug> to read one template with its long-form copy. Then send a mockup's source_url to create_photo_mockup: it becomes a reusable mockup on your account for 25 credits, and each render of it costs 5. This search itself reads only and costs 0 credits.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "description": "Free text matched against a template's title and description, so \"coffee mug\" or \"oversized tee\" both work. Leave it out to list the library.",
+            "type": "string"
+          },
+          "category": {
+            "description": "Keep only one top category: apparel, home-living, accessories, drinkware, signage-advertising, print-paper, packaging, branding.",
+            "type": "string"
+          },
+          "product_type": {
+            "description": "Keep only one product type, the narrowest level: crewneck-short-sleeve, classic-ceramic-mug, wall-mural, tote-bag.",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Keep only templates carrying this tag, such as t-shirt-mockup. Several tags are comma-separated.",
+            "type": "string"
+          },
+          "slug": {
+            "description": "Read ONE template instead of searching, for its long-form copy and the facets it is listed under. The slug comes from a search hit.",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "description": "How many templates one page of results carries, 1 to 50.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "page": {
+            "default": 1,
+            "description": "Which page of results to return, counting from 1.",
+            "type": "number",
+            "minimum": 1
+          }
+        },
         "$schema": "http://json-schema.org/draft-07/schema#"
       }
     },
