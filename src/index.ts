@@ -3065,7 +3065,7 @@ const READY_MADE_NEXT_STEP =
 // a setup moved from one to the other reads the same words.
 server.tool(
   "search_ready_made_mockups",
-  "Search SudoMock's free library of ready-made mockups. Nothing here needs a Photoshop file or a product photo of your own: 6,870 ready-made mockups across 104 product types. A mockup is one view of a product scene (front, folded, flat lay, lifestyle, close-up) and a template is the set of views of that scene, 912 of them. Search by free text, category, product type or tag and you get templates back with every mockup they hold, each carrying the address to render from, so one call is enough to act on. Pass slug=<a hit's slug> to read one template with its long-form copy. Then send a mockup's source_url to create_photo_mockup: it becomes a reusable mockup on your account for 25 credits, and each render of it costs 5. This search itself reads only and costs 0 credits.",
+  "Search SudoMock's free library of ready-made mockups. Nothing here needs a Photoshop file or a product photo of your own: 6,800+ ready-made mockups across 104 product types. A mockup is one view of a product scene (front, folded, flat lay, lifestyle, close-up) and a template is the set of views of that scene, 912 of them. Search by free text, category, product type or tag and you get templates back with every mockup they hold, each carrying the address to render from, so one call is enough to act on. Pass slug=<a hit's slug> to read one template with its long-form copy. Then send a mockup's source_url to create_photo_mockup: it becomes a reusable mockup on your account for 25 credits, and each render of it costs 5. This search itself reads only and costs 0 credits.",
   {
     search: z
       .string()

@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [3.12.1] - 2026-11-13
+
+### Changed
+
+- The ready-made library count reads as a floor, not an exact figure.
+
 ## [3.12.0] - 2026-11-13
 
 ### Added

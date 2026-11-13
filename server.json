@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.sudomock/mcp",
-  "description": "Mockup generator and rendering API: 6,870 ready-made mockups, or bring your own PSD or photo.",
+  "description": "Mockup generator and rendering API: 6,800+ ready-made mockups, or bring your own PSD or photo.",
   "repository": {
     "url": "https://github.com/sudomock/mcp-server",
     "source": "github"
   },
-  "version": "3.6.1",
+  "version": "3.12.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sudomock/mcp",
-      "version": "3.6.1",
+      "version": "3.12.1",
       "transport": {
         "type": "stdio"
       },
