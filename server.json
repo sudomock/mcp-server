@@ -2,6 +2,24 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.sudomock/mcp",
   "description": "PSD mockup render API: your own Photoshop templates plus 6,800+ ready-made mockups, from $0.002.",
+  "icons": [
+    {
+      "src": "https://sudomock.com/Logo_Files/PNG/1x/icon-diamond-dark.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "1080x1080"
+      ],
+      "theme": "light"
+    },
+    {
+      "src": "https://sudomock.com/Logo_Files/PNG/1x/icon-diamond-light.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "1080x1080"
+      ],
+      "theme": "dark"
+    }
+  ],
   "repository": {
     "url": "https://github.com/sudomock/mcp-server",
     "source": "github"
