@@ -36,8 +36,23 @@ Get your API key at [sudomock.com/dashboard/api-keys](https://sudomock.com/dashb
 
 </details>
 
-> **Note:** A hosted remote (HTTP/OAuth) transport is not available yet. This
-> package only ships the local stdio server shown above.
+## Hosted remote server
+
+SudoMock also runs a hosted MCP server, so a client that supports remote servers
+over HTTP needs nothing installed:
+
+```bash
+claude mcp add --transport http sudomock https://mcp.sudomock.com
+```
+
+The client opens a browser window where you sign in to SudoMock and approve
+access, so no API key goes into the configuration. For any other client, point
+its own remote HTTP MCP configuration with OAuth at the same address. Per-client
+instructions: [Connect an agent](https://sudomock.com/docs/connect-an-agent).
+
+Both connections serve the same tools and bill the same account. This package
+adds one the hosted server cannot: an upload for a file that exists only on the
+machine running the server.
 
 ## Tools
 
@@ -132,7 +147,7 @@ explicit `width` + `height`. A print area
 is a bounded zone somebody drew on a product, such as a chest logo:
 `render_2d_print_area` takes its `print_area_uuid`, and either a `fit` or an
 explicit `width` + `height`. A product can have both, and they are separate
-targets -- a saved print area does not close off the surface it sits on.
+targets, and a saved print area does not close off the surface it sits on.
 
 Sizing has one answer per render: send the relative option or the exact box,
 never both, and send `width` and `height` together. `position`, `offset_x`,
@@ -281,10 +296,10 @@ as `0 / 0`.
 
 ## Links
 
-- [Dashboard](https://sudomock.com/dashboard) -- Manage mockups and API keys
-- [API Docs](https://sudomock.com/docs) -- Full REST API reference
+- [Dashboard](https://sudomock.com/dashboard): manage mockups and API keys
+- [API Docs](https://sudomock.com/docs): the full REST API reference
 - [Pricing](https://sudomock.com/pricing)
-- [Status](https://sudomock.statuspage.io) -- Service uptime
+- [Status](https://sudomock.statuspage.io): service uptime
 
 ## License
 
