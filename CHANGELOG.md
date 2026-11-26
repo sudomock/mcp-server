@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [3.12.4] - 2026-11-27
+
+### Changed
+
+- The library's size in the descriptions (6,900+ ready-made mockups, 912 templates, 104 product types) is read from the live library when a release is built, so it no longer goes stale between releases.
+
 ## [3.12.3] - 2026-11-26
 
 ### Fixed
