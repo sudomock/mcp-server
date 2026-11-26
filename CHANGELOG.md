@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [3.12.3] - 2026-11-26
+
+### Fixed
+
+- `image_size` on photo and 2D renders is described as the length of the output's longer side, matching the API. It used to say width.
+
 ## [3.12.2] - 2026-11-26
 
 ### Fixed

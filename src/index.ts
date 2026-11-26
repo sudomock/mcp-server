@@ -1819,7 +1819,7 @@ const TWO_D_SHARED = {
     .optional()
     .describe("Where the artwork sits within its target. Omit to accept the renderer's anchor, which is the center."),
   image_format: z.enum(["webp", "png", "jpg"]).default("webp").describe("Output format - 'webp' (smaller, recommended), 'png' (lossless), 'jpg'"),
-  image_size: z.number().min(100).max(10000).optional().describe("Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial."),
+  image_size: z.number().min(100).max(10000).optional().describe("Length of the output's longer side in pixels (100-10000); the other side follows the product photo's proportions. An account in trial renders up to 1024 on the longer side: when image_size is omitted the render comes out at 1024, and a larger image_size that you send is rejected with error_code OUTPUT_RESOLUTION_LIMIT (HTTP 402), never silently downscaled. Add a payment method to render at full size."),
   quality: z.number().min(1).max(100).default(90).describe("Compression quality for webp/jpg (1-100, default 90)"),
   is_async: z
     .boolean()

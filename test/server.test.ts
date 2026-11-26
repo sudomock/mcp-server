@@ -2071,3 +2071,21 @@ test("search_ready_made_mockups reads the catalogue and points at the next step"
     else process.env.SUDOMOCK_API_KEY = originalApiKey;
   }
 });
+
+test("image_size says longer side for photo and 2D renders, width for PSD renders", async () => {
+  const client = await connectClient();
+  try {
+    const { tools } = await client.listTools();
+    const sizeText = (name: string): string => {
+      const props = (tools.find((t) => t.name === name)?.inputSchema.properties ?? {}) as Record<string, { description?: string }>;
+      return props.image_size?.description ?? "";
+    };
+    for (const name of ["render_photo_mockup", "render_2d_mockup"]) {
+      assert.match(sizeText(name), /longer side/, `${name} image_size must describe the longer side`);
+      assert.doesNotMatch(sizeText(name), /Output width/, `${name} image_size must not say width`);
+    }
+    assert.match(sizeText("render_psd_mockup"), /Output width/);
+  } finally {
+    await client.close();
+  }
+});
