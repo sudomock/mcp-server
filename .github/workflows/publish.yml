@@ -19,6 +19,8 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
       - run: npm ci
+      # The library size the descriptions state, read from the live API.
+      - run: npm run sync:library-size
       - run: npm run build
       - name: Publish to npm (skip if this version is already there)
         # The two publish targets (npm + MCP Registry) run in one job and were

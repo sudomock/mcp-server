@@ -11,7 +11,7 @@
 
 [![sudomock/mcp-server MCP server](https://glama.ai/mcp/servers/sudomock/mcp-server/badges/score.svg)](https://glama.ai/mcp/servers/sudomock/mcp-server)
 
-[Model Context Protocol](https://modelcontextprotocol.io/introduction) server for the [SudoMock](https://sudomock.com) mockup generator and rendering API. Start from a free library of 6,800+ ready-made mockups or upload your own PSD template, place artwork onto smart objects, edit supported text layers, and get rendered image URLs, all through natural language.
+[Model Context Protocol](https://modelcontextprotocol.io/introduction) server for the [SudoMock](https://sudomock.com) mockup generator and rendering API. Start from a free library of 6,900+ ready-made mockups or upload your own PSD template, place artwork onto smart objects, edit supported text layers, and get rendered image URLs, all through natural language.
 
 ## Quick Start
 

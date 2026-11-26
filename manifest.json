@@ -935,7 +935,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial.",
+            "description": "Length of the output's longer side in pixels (100-10000); the other side follows the product photo's proportions. An account in trial renders up to 1024 on the longer side: when image_size is omitted the render comes out at 1024, and a larger image_size that you send is rejected with error_code OUTPUT_RESOLUTION_LIMIT (HTTP 402), never silently downscaled. Add a payment method to render at full size.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000
@@ -1112,7 +1112,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial.",
+            "description": "Length of the output's longer side in pixels (100-10000); the other side follows the product photo's proportions. An account in trial renders up to 1024 on the longer side: when image_size is omitted the render comes out at 1024, and a larger image_size that you send is rejected with error_code OUTPUT_RESOLUTION_LIMIT (HTTP 402), never silently downscaled. Add a payment method to render at full size.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000
@@ -1267,7 +1267,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial.",
+            "description": "Length of the output's longer side in pixels (100-10000); the other side follows the product photo's proportions. An account in trial renders up to 1024 on the longer side: when image_size is omitted the render comes out at 1024, and a larger image_size that you send is rejected with error_code OUTPUT_RESOLUTION_LIMIT (HTTP 402), never silently downscaled. Add a payment method to render at full size.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000
@@ -2000,7 +2000,7 @@
             ]
           },
           "image_size": {
-            "description": "Output width in pixels (100-10000). Leave it out for the default: 2048, or 1024 while the account is in trial.",
+            "description": "Length of the output's longer side in pixels (100-10000); the other side follows the product photo's proportions. An account in trial renders up to 1024 on the longer side: when image_size is omitted the render comes out at 1024, and a larger image_size that you send is rejected with error_code OUTPUT_RESOLUTION_LIMIT (HTTP 402), never silently downscaled. Add a payment method to render at full size.",
             "type": "number",
             "minimum": 100,
             "maximum": 10000
@@ -2850,7 +2850,7 @@
     },
     {
       "name": "search_ready_made_mockups",
-      "description": "Search SudoMock's free library of ready-made mockups. Nothing here needs a Photoshop file or a product photo of your own: 6,800+ ready-made mockups across 104 product types. A mockup is one view of a product scene (front, folded, flat lay, lifestyle, close-up) and a template is the set of views of that scene, 912 of them. Search by free text, category, product type or tag and you get templates back with every mockup they hold, each carrying the address to render from, so one call is enough to act on. Pass slug=<a hit's slug> to read one template with its long-form copy. Then send a mockup's source_url to create_photo_mockup: it becomes a reusable mockup on your account for 25 credits, and each render of it costs 5. This search itself reads only and costs 0 credits.",
+      "description": "Search SudoMock's free library of ready-made mockups. Nothing here needs a Photoshop file or a product photo of your own: 6,900+ ready-made mockups across 104 product types. A mockup is one view of a product scene (front, folded, flat lay, lifestyle, close-up) and a template is the set of views of that scene, 912 of them. Search by free text, category, product type or tag and you get templates back with every mockup they hold, each carrying the address to render from, so one call is enough to act on. Pass slug=<a hit's slug> to read one template with its long-form copy. Then send a mockup's source_url to create_photo_mockup: it becomes a reusable mockup on your account for 25 credits, and each render of it costs 5. This search itself reads only and costs 0 credits.",
       "inputSchema": {
         "type": "object",
         "properties": {
