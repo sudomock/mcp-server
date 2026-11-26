@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [3.12.2] - 2026-11-26
+
+### Fixed
+
+- `npx -y @sudomock/mcp` starts the server again. It exited silently when launched through the `.bin` symlink.
+
 ## [3.12.1] - 2026-11-13
 
 ### Changed

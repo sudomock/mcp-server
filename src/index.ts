@@ -13,7 +13,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -3404,9 +3404,16 @@ async function main() {
 // Only start the stdio transport when this file is executed directly (the bin
 // entrypoint). When imported (e.g. by the test suite) we expose `server` without
 // connecting, so tests can introspect it over an in-memory transport.
-const isEntrypoint =
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+// npx and global installs run the bin through a symlink, so compare real paths.
+function isEntrypointPath(arg: string | undefined): boolean {
+  if (arg === undefined) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(arg)).href;
+  } catch {
+    return import.meta.url === pathToFileURL(arg).href;
+  }
+}
+const isEntrypoint = isEntrypointPath(process.argv[1]);
 
 if (isEntrypoint) {
   main().catch(() => {
